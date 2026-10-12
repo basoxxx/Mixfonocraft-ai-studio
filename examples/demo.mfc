@@ -1,0 +1,4563 @@
+{
+  "format_version": 1,
+  "info": {
+    "title": "Mixfonocraft Demo",
+    "artist": "Mixfonocraft AI Studio",
+    "genre": "Electro",
+    "comments": "Progetto dimostrativo generato da `mixfonocraft demo`.",
+    "url": ""
+  },
+  "tempo": 128.0,
+  "time": {
+    "ppq": 96,
+    "signature": {
+      "numerator": 4,
+      "denominator": 4
+    }
+  },
+  "master_volume": 0.4,
+  "master_pitch": 0.0,
+  "swing": 0.0,
+  "channels": [
+    {
+      "id": 2,
+      "name": "Kick",
+      "color": [
+        95,
+        117,
+        129
+      ],
+      "kind": "generator",
+      "plugin": {
+        "kind": "mfc.kick",
+        "params": {
+          "amp": 1.0,
+          "amp_decay": 0.6,
+          "click": 0.4,
+          "distortion": 0.1,
+          "end_freq": 48.0,
+          "key_track": 0.0,
+          "pitch_decay": 0.045,
+          "start_freq": 280.0,
+          "tone": 0.7
+        }
+      },
+      "volume": 0.78,
+      "pan": 0.0,
+      "pitch_cents": 0.0,
+      "muted": false,
+      "mixer_insert": 1,
+      "root_note": 60
+    },
+    {
+      "id": 3,
+      "name": "Clap",
+      "color": [
+        95,
+        117,
+        129
+      ],
+      "kind": "generator",
+      "plugin": {
+        "kind": "mfc.drumsynth",
+        "params": {
+          "amp": 1.0,
+          "decay": 0.5,
+          "key_track": 0.0,
+          "pitch": 0.0,
+          "snappy": 0.5,
+          "tone": 0.5,
+          "type": 2.0
+        }
+      },
+      "volume": 0.78,
+      "pan": 0.0,
+      "pitch_cents": 0.0,
+      "muted": false,
+      "mixer_insert": 2,
+      "root_note": 60
+    },
+    {
+      "id": 4,
+      "name": "Hats",
+      "color": [
+        95,
+        117,
+        129
+      ],
+      "kind": "generator",
+      "plugin": {
+        "kind": "mfc.drumsynth",
+        "params": {
+          "amp": 1.0,
+          "decay": 0.3,
+          "key_track": 0.0,
+          "pitch": 0.0,
+          "snappy": 0.5,
+          "tone": 0.5,
+          "type": 3.0
+        }
+      },
+      "volume": 0.78,
+      "pan": 0.2,
+      "pitch_cents": 0.0,
+      "muted": false,
+      "mixer_insert": 3,
+      "root_note": 60
+    },
+    {
+      "id": 5,
+      "name": "Bass",
+      "color": [
+        95,
+        117,
+        129
+      ],
+      "kind": "generator",
+      "plugin": {
+        "kind": "mfc.3xosc",
+        "params": {
+          "amp": 0.6,
+          "attack": 0.005,
+          "cutoff": 900.0,
+          "decay": 0.25,
+          "glide": 0.1,
+          "osc1_coarse": 0.0,
+          "osc1_detune": 0.0,
+          "osc1_fine": 0.0,
+          "osc1_pan": 0.0,
+          "osc1_phase": 0.0,
+          "osc1_shape": 0.0,
+          "osc1_volume": 1.0,
+          "osc2_coarse": -12.0,
+          "osc2_detune": 0.0,
+          "osc2_fine": 0.0,
+          "osc2_pan": 0.0,
+          "osc2_phase": 0.0,
+          "osc2_shape": 0.0,
+          "osc2_volume": 0.5,
+          "osc3_coarse": -24.0,
+          "osc3_detune": 0.0,
+          "osc3_fine": 0.0,
+          "osc3_pan": 0.0,
+          "osc3_phase": 0.0,
+          "osc3_shape": 0.0,
+          "osc3_volume": 0.25,
+          "release": 0.12,
+          "resonance": 0.25,
+          "sustain": 0.6
+        }
+      },
+      "volume": 0.78,
+      "pan": 0.0,
+      "pitch_cents": 0.0,
+      "muted": false,
+      "mixer_insert": 4,
+      "root_note": 60
+    },
+    {
+      "id": 6,
+      "name": "Lead",
+      "color": [
+        95,
+        117,
+        129
+      ],
+      "kind": "generator",
+      "plugin": {
+        "kind": "mfc.supersaw",
+        "params": {
+          "amp": 0.45,
+          "attack": 0.02,
+          "cutoff": 7000.0,
+          "decay": 0.4,
+          "detune": 0.35,
+          "mix": 0.6,
+          "release": 0.4,
+          "resonance": 0.15,
+          "spread": 0.8,
+          "sustain": 0.8
+        }
+      },
+      "volume": 0.78,
+      "pan": -0.15,
+      "pitch_cents": 0.0,
+      "muted": false,
+      "mixer_insert": 5,
+      "root_note": 60
+    }
+  ],
+  "patterns": [
+    {
+      "id": 1,
+      "name": "Groove",
+      "color": [
+        95,
+        117,
+        129
+      ],
+      "length": 1536,
+      "notes": {
+        "2": [
+          {
+            "position": 0,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 96,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 192,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 288,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 384,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 480,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 576,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 672,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 768,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 864,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 960,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 1056,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 1152,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 1248,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 1344,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 1440,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          }
+        ],
+        "3": [
+          {
+            "position": 96,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 288,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 480,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 672,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 864,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 1056,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 1248,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 1440,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          }
+        ],
+        "4": [
+          {
+            "position": 48,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 144,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 240,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 336,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 432,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 528,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 624,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 720,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 816,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 912,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 1008,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 1104,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 1200,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 1296,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 1392,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 1488,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          }
+        ],
+        "5": [
+          {
+            "position": 0,
+            "length": 144,
+            "key": 33,
+            "velocity": 0.85,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 240,
+            "length": 48,
+            "key": 45,
+            "velocity": 0.7,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 288,
+            "length": 96,
+            "key": 33,
+            "velocity": 0.8,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 384,
+            "length": 144,
+            "key": 29,
+            "velocity": 0.85,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 624,
+            "length": 48,
+            "key": 41,
+            "velocity": 0.7,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 672,
+            "length": 96,
+            "key": 29,
+            "velocity": 0.8,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 768,
+            "length": 144,
+            "key": 36,
+            "velocity": 0.85,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 1008,
+            "length": 48,
+            "key": 48,
+            "velocity": 0.7,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 1056,
+            "length": 96,
+            "key": 36,
+            "velocity": 0.8,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 1152,
+            "length": 144,
+            "key": 31,
+            "velocity": 0.85,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 1392,
+            "length": 48,
+            "key": 43,
+            "velocity": 0.7,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 1440,
+            "length": 96,
+            "key": 31,
+            "velocity": 0.8,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          }
+        ]
+      }
+    },
+    {
+      "id": 7,
+      "name": "Full",
+      "color": [
+        95,
+        117,
+        129
+      ],
+      "length": 1536,
+      "notes": {
+        "2": [
+          {
+            "position": 0,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 96,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 192,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 288,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 384,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 480,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 576,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 672,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 768,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 864,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 960,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 1056,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 1152,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 1248,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 1344,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 1440,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          }
+        ],
+        "3": [
+          {
+            "position": 96,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 288,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 480,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 672,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 864,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 1056,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 1248,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 1440,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          }
+        ],
+        "4": [
+          {
+            "position": 48,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 144,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 240,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 336,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 432,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 528,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 624,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 720,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 816,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 912,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 1008,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 1104,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 1200,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 1296,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 1392,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 1488,
+            "length": 24,
+            "key": 60,
+            "velocity": 0.78,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          }
+        ],
+        "5": [
+          {
+            "position": 0,
+            "length": 144,
+            "key": 33,
+            "velocity": 0.85,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 240,
+            "length": 48,
+            "key": 45,
+            "velocity": 0.7,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 288,
+            "length": 96,
+            "key": 33,
+            "velocity": 0.8,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 384,
+            "length": 144,
+            "key": 29,
+            "velocity": 0.85,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 624,
+            "length": 48,
+            "key": 41,
+            "velocity": 0.7,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 672,
+            "length": 96,
+            "key": 29,
+            "velocity": 0.8,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 768,
+            "length": 144,
+            "key": 36,
+            "velocity": 0.85,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 1008,
+            "length": 48,
+            "key": 48,
+            "velocity": 0.7,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 1056,
+            "length": 96,
+            "key": 36,
+            "velocity": 0.8,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 1152,
+            "length": 144,
+            "key": 31,
+            "velocity": 0.85,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 1392,
+            "length": 48,
+            "key": 43,
+            "velocity": 0.7,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 1440,
+            "length": 96,
+            "key": 31,
+            "velocity": 0.8,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          }
+        ],
+        "6": [
+          {
+            "position": 0,
+            "length": 144,
+            "key": 64,
+            "velocity": 0.8,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 144,
+            "length": 48,
+            "key": 62,
+            "velocity": 0.8,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 192,
+            "length": 96,
+            "key": 60,
+            "velocity": 0.8,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 288,
+            "length": 96,
+            "key": 57,
+            "velocity": 0.8,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 384,
+            "length": 96,
+            "key": 57,
+            "velocity": 0.8,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 480,
+            "length": 96,
+            "key": 60,
+            "velocity": 0.8,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 576,
+            "length": 96,
+            "key": 65,
+            "velocity": 0.8,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 672,
+            "length": 96,
+            "key": 64,
+            "velocity": 0.8,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 768,
+            "length": 144,
+            "key": 67,
+            "velocity": 0.8,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 912,
+            "length": 48,
+            "key": 64,
+            "velocity": 0.8,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 960,
+            "length": 96,
+            "key": 60,
+            "velocity": 0.8,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 1056,
+            "length": 96,
+            "key": 62,
+            "velocity": 0.8,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 1152,
+            "length": 96,
+            "key": 71,
+            "velocity": 0.8,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 1248,
+            "length": 96,
+            "key": 62,
+            "velocity": 0.8,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 1344,
+            "length": 96,
+            "key": 67,
+            "velocity": 0.8,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          },
+          {
+            "position": 1440,
+            "length": 96,
+            "key": 64,
+            "velocity": 0.8,
+            "pan": 0.0,
+            "fine_pitch": 0.0,
+            "release": 0.5,
+            "slide": false,
+            "mod_x": 0.5,
+            "mod_y": 0.5
+          }
+        ]
+      }
+    }
+  ],
+  "playlist": {
+    "tracks": {
+      "0": {
+        "name": "Beat",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "muted": false
+      },
+      "1": {
+        "name": "Master fade",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "muted": false
+      }
+    },
+    "clips": [
+      {
+        "id": 8,
+        "track": 0,
+        "position": 0,
+        "length": 1536,
+        "offset": 0,
+        "source": {
+          "type": "pattern",
+          "id": 1
+        },
+        "muted": false
+      },
+      {
+        "id": 9,
+        "track": 0,
+        "position": 1536,
+        "length": 1536,
+        "offset": 0,
+        "source": {
+          "type": "pattern",
+          "id": 7
+        },
+        "muted": false
+      },
+      {
+        "id": 11,
+        "track": 1,
+        "position": 2304,
+        "length": 768,
+        "offset": 0,
+        "source": {
+          "type": "automation",
+          "id": 10
+        },
+        "muted": false
+      }
+    ]
+  },
+  "mixer": {
+    "inserts": [
+      {
+        "name": "Master",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": []
+      },
+      {
+        "name": "Kick",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Clap",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Hats",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Bass",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Lead",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [
+          {
+            "plugin": {
+              "kind": "mfc.reverb",
+              "params": {
+                "damping": 0.5,
+                "dry": 1.0,
+                "high_cut": 12000.0,
+                "predelay": 12.0,
+                "room_size": 0.7,
+                "wet": 0.22,
+                "width": 1.0
+              }
+            },
+            "enabled": true,
+            "mix": 1.0
+          },
+          {
+            "plugin": {
+              "kind": "mfc.delay",
+              "params": {
+                "cutoff": 8000.0,
+                "dry": 1.0,
+                "feedback": 0.35,
+                "ping_pong": 0.0,
+                "stereo_offset": 0.0,
+                "time": 352.0,
+                "wet": 0.18
+              }
+            },
+            "enabled": true,
+            "mix": 1.0
+          }
+        ],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 6",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 7",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 8",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 9",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 10",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 11",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 12",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 13",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 14",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 15",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 16",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 17",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 18",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 19",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 20",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 21",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 22",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 23",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 24",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 25",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 26",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 27",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 28",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 29",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 30",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 31",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 32",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 33",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 34",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 35",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 36",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 37",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 38",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 39",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 40",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 41",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 42",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 43",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 44",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 45",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 46",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 47",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 48",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 49",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 50",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 51",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 52",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 53",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 54",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 55",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 56",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 57",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 58",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 59",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 60",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 61",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 62",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 63",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 64",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 65",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 66",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 67",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 68",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 69",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 70",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 71",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 72",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 73",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 74",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 75",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 76",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 77",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 78",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 79",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 80",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 81",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 82",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 83",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 84",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 85",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 86",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 87",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 88",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 89",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 90",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 91",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 92",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 93",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 94",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 95",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 96",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 97",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 98",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 99",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 100",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 101",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 102",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 103",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 104",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 105",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 106",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 107",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 108",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 109",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 110",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 111",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 112",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 113",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 114",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 115",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 116",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 117",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 118",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 119",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 120",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 121",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 122",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 123",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 124",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      },
+      {
+        "name": "Insert 125",
+        "color": [
+          95,
+          117,
+          129
+        ],
+        "volume": 0.8,
+        "pan": 0.0,
+        "stereo_separation": 0.0,
+        "muted": false,
+        "solo": false,
+        "phase_invert": false,
+        "swap_lr": false,
+        "effects": [],
+        "routes": [
+          {
+            "target": 0,
+            "gain": 1.0
+          }
+        ]
+      }
+    ]
+  },
+  "automations": [
+    {
+      "id": 10,
+      "name": "Fade out master",
+      "target": {
+        "type": "master_volume"
+      },
+      "min": 0.0,
+      "max": 0.4,
+      "points": [
+        {
+          "position": 0,
+          "value": 1.0,
+          "tension": 0.0
+        },
+        {
+          "position": 768,
+          "value": 0.0,
+          "tension": 0.0
+        }
+      ]
+    }
+  ],
+  "current_pattern": 1,
+  "next_id": 12
+}

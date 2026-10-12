@@ -3,11 +3,15 @@
 
 use std::path::PathBuf;
 
-use anyhow::{anyhow, Context, Result};
+#[cfg(feature = "gui")]
+use anyhow::anyhow;
+use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
+#[cfg(feature = "gui")]
+use mfc_cli::Format;
 use mfc_cli::{
     build_demo, flp_inspect, load_project, new_project, parse_format, plugins_json, plugins_text, render_wav,
-    save_project, Format, RenderRequest, Summary,
+    save_project, RenderRequest, Summary,
 };
 use mfc_core::{PatternId, Project};
 
@@ -205,7 +209,10 @@ fn main() -> Result<()> {
                 "FLP formato {} · {} canali · PPQ {} · {} eventi ({} corrispondono al filtro)",
                 r.format, r.channels, r.ppq, r.total, r.matching
             );
-            println!("{:>6} {:>4} {:<28} {:<8} {:>7}  anteprima", "indice", "id", "nome", "tipo", "byte");
+            println!(
+                "{:>6} {:>4} {:<28} {:<8} {:>7}  anteprima",
+                "indice", "id", "nome", "tipo", "byte"
+            );
             for row in &r.rows {
                 println!(
                     "{:>6} {:>4} {:<28} {:<8} {:>7}  {}",

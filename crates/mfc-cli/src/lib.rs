@@ -231,13 +231,8 @@ impl Summary {
     pub fn from_project(p: &Project) -> Self {
         let tb = p.time;
         let bar = tb.ticks_per_bar() as f64;
-        let notes_of_channel = |c: ChannelId| -> usize {
-            p.patterns
-                .iter()
-                .filter_map(|pt| pt.notes.get(&c))
-                .map(Vec::len)
-                .sum()
-        };
+        let notes_of_channel =
+            |c: ChannelId| -> usize { p.patterns.iter().filter_map(|pt| pt.notes.get(&c)).map(Vec::len).sum() };
         let channels = p
             .channels
             .iter()
@@ -445,7 +440,10 @@ impl Summary {
             let routes = if i.routes.is_empty() {
                 String::new()
             } else {
-                format!(" → {}", i.routes.iter().map(u16::to_string).collect::<Vec<_>>().join(","))
+                format!(
+                    " → {}",
+                    i.routes.iter().map(u16::to_string).collect::<Vec<_>>().join(",")
+                )
             };
             let _ = writeln!(
                 s,
@@ -846,14 +844,26 @@ pub fn build_demo() -> Result<Project> {
         &mut p,
         "Bass",
         "mfc.3xosc",
-        &[("cutoff", 900.0), ("resonance", 0.25), ("decay", 0.25), ("sustain", 0.6), ("release", 0.12)],
+        &[
+            ("cutoff", 900.0),
+            ("resonance", 0.25),
+            ("decay", 0.25),
+            ("sustain", 0.6),
+            ("release", 0.12),
+        ],
         4,
     )?;
     let lead = add_channel(
         &mut p,
         "Lead",
         "mfc.supersaw",
-        &[("cutoff", 7000.0), ("resonance", 0.15), ("attack", 0.02), ("release", 0.4), ("amp", 0.45)],
+        &[
+            ("cutoff", 7000.0),
+            ("resonance", 0.15),
+            ("attack", 0.02),
+            ("release", 0.4),
+            ("amp", 0.45),
+        ],
         5,
     )?;
     set_pan(&mut p, hats, 0.2)?;
