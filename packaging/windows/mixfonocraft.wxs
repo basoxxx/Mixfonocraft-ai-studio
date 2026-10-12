@@ -36,16 +36,17 @@
 
         <Component Id="CmpStudio" Guid="*">
           <File Id="StudioExe" Source="$(SourceDir)\mixfonocraft-studio.exe" KeyPath="yes" />
-        </Component>
-
-        <Component Id="CmpCli" Guid="*">
-          <File Id="CliExe" Source="$(SourceDir)\mixfonocraft.exe" KeyPath="yes" />
-          <!-- Associazione del formato .mfc (progetto nativo, JSON) all'app. -->
-          <ProgId Id="MixfonocraftProject" Description="Progetto Mixfonocraft" Icon="AppIcon.ico" IconIndex="0">
+          <!-- Associazione del formato .mfc (progetto nativo, JSON) all'app; l'icona
+               è presa dalle risorse dell'eseguibile (Icon = Id di un File). -->
+          <ProgId Id="MixfonocraftProject" Description="Progetto Mixfonocraft" Icon="StudioExe" IconIndex="0">
             <Extension Id="mfc" ContentType="application/json">
               <Verb Id="open" Command="Apri" TargetFile="StudioExe" Argument="&quot;%1&quot;" />
             </Extension>
           </ProgId>
+        </Component>
+
+        <Component Id="CmpCli" Guid="*">
+          <File Id="CliExe" Source="$(SourceDir)\mixfonocraft.exe" KeyPath="yes" />
         </Component>
 
         <Component Id="CmpCliPath" Guid="*">

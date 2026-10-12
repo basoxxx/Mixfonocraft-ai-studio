@@ -3,12 +3,14 @@
 //! Click su un generatore aggiunge un canale; click su un effetto lo aggiunge all'insert
 //! selezionato; click su un'automazione la piazza in fondo alla Playlist.
 
-use egui::{Id, Ui};
+use egui::{pos2, vec2, Align2, Color32, FontId, Id, Rect, Response, RichText, Sense, Stroke, Ui};
 use mfc_core::{AutomationId, ChannelId, ClipSource, Command, PatternId, Project, PLAYLIST_TRACKS};
 use mfc_plugins::{default_instance, registry, PluginRole};
 
 use crate::state::Studio;
+use crate::theme::{self, pal};
 use crate::views::channel_rack::add_generator;
+use crate::views::widgets::{self, Icon};
 
 /// Chiave temporanea dell'editor di rinomina dei pattern: (pattern, testo in modifica).
 fn rename_id() -> Id {
@@ -27,38 +29,192 @@ pub fn next_free_track(project: &Project) -> u16 {
         .min(PLAYLIST_TRACKS - 1) as u16
 }
 
+/// Tipo di marcatore a sinistra di una voce.
+enum Mark {
+    Swatch(Color32),
+    Icon(Icon, Color32),
+}
+
+/// Riga del browser: marcatore, testo, sottotitolo opzionale; evidenziata se selezionata.
+fn item(ui: &mut Ui, mark: Mark, label: &str, sub: &str, selected: bool) -> Response {
+    let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 24.0), Sense::click());
+    let p = ui.painter();
+    if selected {
+        p.rect_filled(rect, 4.0, theme::mix(pal::BG_RAISED, pal::ACCENT, 0.14));
+        p.rect_filled(
+            Rect::from_min_size(rect.left_top() + vec2(0.0, 4.0), vec2(3.0, rect.height() - 8.0)),
+            1.5,
+            pal::ACCENT,
+        );
+    } else if resp.hovered() {
+        p.rect_filled(rect, 4.0, pal::BG_RAISED);
+    }
+    let mx = rect.left() + 16.0;
+    match mark {
+        Mark::Swatch(c) => {
+            p.rect_filled(
+                Rect::from_center_size(pos2(mx, rect.center().y), vec2(8.0, 8.0)),
+                2.0,
+                c,
+            );
+        }
+        Mark::Icon(i, c) => widgets::paint_icon(
+            p,
+            Rect::from_center_size(pos2(mx, rect.center().y), vec2(13.0, 13.0)),
+            i,
+            c,
+        ),
+    }
+    let tc = if selected {
+        Color32::WHITE
+    } else if resp.hovered() {
+        pal::TEXT
+    } else {
+        theme::mix(pal::TEXT, pal::TEXT_DIM, 0.4)
+    };
+    let t = p.text(
+        pos2(rect.left() + 28.0, rect.center().y),
+        Align2::LEFT_CENTER,
+        label,
+        FontId::proportional(12.0),
+        tc,
+    );
+    if !sub.is_empty() && t.right() + 30.0 < rect.right() {
+        p.text(
+            pos2(rect.right() - 8.0, rect.center().y),
+            Align2::RIGHT_CENTER,
+            sub,
+            FontId::proportional(10.0),
+            pal::TEXT_FAINT,
+        );
+    }
+    resp
+}
+
+/// Intestazione di sezione apribile; restituisce `true` se aperta.
+fn section(ui: &mut Ui, title: &str, count: usize, default_open: bool) -> bool {
+    let id = Id::new(("browser_section", title));
+    let mut open = ui.data(|d| d.get_temp::<bool>(id)).unwrap_or(default_open);
+    ui.add_space(4.0);
+    let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 22.0), Sense::click());
+    if resp.clicked() {
+        open = !open;
+        ui.data_mut(|d| d.insert_temp(id, open));
+    }
+    let p = ui.painter();
+    let c = if resp.hovered() { pal::TEXT } else { pal::TEXT_DIM };
+    let a = pos2(rect.left() + 10.0, rect.center().y);
+    let tri = if open {
+        vec![a + vec2(-3.5, -2.0), a + vec2(3.5, -2.0), a + vec2(0.0, 2.5)]
+    } else {
+        vec![a + vec2(-2.0, -3.5), a + vec2(2.5, 0.0), a + vec2(-2.0, 3.5)]
+    };
+    p.add(egui::Shape::convex_polygon(tri, c, Stroke::NONE));
+    p.text(
+        pos2(rect.left() + 20.0, rect.center().y),
+        Align2::LEFT_CENTER,
+        title.to_uppercase(),
+        theme::bold_font(10.5),
+        c,
+    );
+    let badge = format!("{count}");
+    let br = Rect::from_center_size(pos2(rect.right() - 16.0, rect.center().y), vec2(22.0, 15.0));
+    p.rect_filled(br, 7.5, pal::BG_INSET);
+    p.text(
+        br.center(),
+        Align2::CENTER_CENTER,
+        badge,
+        FontId::proportional(9.5),
+        pal::TEXT_FAINT,
+    );
+    open
+}
+
 /// Disegna il browser.
 pub fn show(ui: &mut Ui, studio: &mut Studio) {
+    // Intestazione.
+    let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), widgets::HEADER_H), Sense::hover());
+    let p = ui.painter();
+    p.rect_filled(
+        rect,
+        egui::CornerRadius {
+            nw: 6,
+            ne: 6,
+            sw: 0,
+            se: 0,
+        },
+        pal::BG_RAISED,
+    );
+    p.line_segment([rect.left_bottom(), rect.right_bottom()], Stroke::new(1.0, pal::BORDER));
+    widgets::paint_icon(
+        p,
+        Rect::from_center_size(pos2(rect.left() + 18.0, rect.center().y), vec2(15.0, 15.0)),
+        Icon::Folder,
+        pal::ACCENT,
+    );
+    p.text(
+        pos2(rect.left() + 34.0, rect.center().y),
+        Align2::LEFT_CENTER,
+        "Browser",
+        theme::bold_font(13.0),
+        pal::TEXT,
+    );
+
     egui::ScrollArea::vertical()
         .id_salt("browser_scroll")
         .auto_shrink([false, false])
         .show(ui, |ui| {
-            egui::CollapsingHeader::new("Pattern")
-                .default_open(true)
-                .show(ui, |ui| patterns(ui, studio));
-            egui::CollapsingHeader::new("Canali")
-                .default_open(true)
-                .show(ui, |ui| channels(ui, studio));
-            egui::CollapsingHeader::new("Generatori")
-                .default_open(true)
-                .show(ui, |ui| generators(ui, studio));
-            egui::CollapsingHeader::new("Effetti")
-                .default_open(false)
-                .show(ui, |ui| effects(ui, studio));
-            egui::CollapsingHeader::new("Automazioni")
-                .default_open(false)
-                .show(ui, |ui| automations(ui, studio));
+            egui::Frame::new()
+                .inner_margin(egui::Margin::symmetric(6, 4))
+                .show(ui, |ui| {
+                    ui.spacing_mut().item_spacing.y = 1.0;
+                    if section(ui, "Pattern", studio.project.patterns.len(), true) {
+                        patterns(ui, studio);
+                    }
+                    if section(ui, "Canali", studio.project.channels.len(), true) {
+                        channels(ui, studio);
+                    }
+                    let gens = registry()
+                        .iter()
+                        .filter(|d| d.role == PluginRole::Generator && d.id != mfc_plugins::ids::SILENT)
+                        .count();
+                    if section(ui, "Strumenti", gens, true) {
+                        generators(ui, studio);
+                    }
+                    let fx = registry().iter().filter(|d| d.role == PluginRole::Effect).count();
+                    if section(ui, "Effetti", fx, false) {
+                        effects(ui, studio);
+                    }
+                    if section(ui, "Automazioni", studio.project.automations.len(), false) {
+                        automations(ui, studio);
+                    }
+                });
         });
 }
 
 fn patterns(ui: &mut Ui, studio: &mut Studio) {
     let rename: Option<(PatternId, String)> = ui.ctx().data(|d| d.get_temp(rename_id()));
     let current = studio.current_pattern();
-    let items: Vec<(PatternId, String)> = studio.project.patterns.iter().map(|p| (p.id, p.name.clone())).collect();
-    for (id, name) in items {
+    let tb = studio.project.time;
+    let items: Vec<(PatternId, String, Color32, String)> = studio
+        .project
+        .patterns
+        .iter()
+        .enumerate()
+        .map(|(i, p)| {
+            let bars = p.effective_length(&tb) as f64 / tb.ticks_per_bar() as f64;
+            (
+                p.id,
+                p.name.clone(),
+                theme::item_color(p.color, i),
+                format!("{bars:.0} bt"),
+            )
+        })
+        .collect();
+    for (id, name, color, sub) in items {
         if let Some((_, buf)) = rename.as_ref().filter(|(rid, _)| *rid == id) {
             let mut buf = buf.clone();
-            let r = ui.text_edit_singleline(&mut buf);
+            let r = ui.add(egui::TextEdit::singleline(&mut buf).desired_width(f32::INFINITY));
             if r.lost_focus() {
                 let new_name = buf.trim().to_string();
                 if !new_name.is_empty() {
@@ -76,9 +232,12 @@ fn patterns(ui: &mut Ui, studio: &mut Studio) {
             }
             continue;
         }
-        let resp = ui.selectable_label(current == Some(id), name.as_str());
+        let resp = item(ui, Mark::Swatch(color), &name, &sub, current == Some(id));
         if resp.clicked() {
             studio.exec(Command::SelectPattern { pattern: id });
+        }
+        if resp.double_clicked() {
+            studio.view = crate::state::View::PianoRoll;
         }
         resp.context_menu(|ui| {
             if ui.button("Clona").clicked() {
@@ -99,22 +258,37 @@ fn patterns(ui: &mut Ui, studio: &mut Studio) {
 }
 
 fn channels(ui: &mut Ui, studio: &mut Studio) {
-    let items: Vec<(ChannelId, String)> = studio.project.channels.iter().map(|c| (c.id, c.name.clone())).collect();
+    let items: Vec<(ChannelId, String, Color32, String)> = studio
+        .project
+        .channels
+        .iter()
+        .enumerate()
+        .map(|(i, c)| {
+            let sub = if c.mixer_insert == 0 {
+                "M".to_string()
+            } else {
+                format!("{}", c.mixer_insert)
+            };
+            (c.id, c.name.clone(), theme::item_color(c.color, i), sub)
+        })
+        .collect();
     if items.is_empty() {
-        ui.weak("Nessun canale");
+        ui.label(RichText::new("   Nessun canale").color(pal::TEXT_FAINT));
     }
     let selected = studio.selected_channel;
-    for (id, name) in items {
-        if ui.selectable_label(selected == Some(id), name).clicked() {
+    for (id, name, color, sub) in items {
+        if item(ui, Mark::Swatch(color), &name, &sub, selected == Some(id)).clicked() {
             studio.selected_channel = Some(id);
         }
     }
 }
 
 fn generators(ui: &mut Ui, studio: &mut Studio) {
-    for d in registry().iter().filter(|d| d.role == PluginRole::Generator) {
-        let resp = ui
-            .selectable_label(false, d.name)
+    for d in registry()
+        .iter()
+        .filter(|d| d.role == PluginRole::Generator && d.id != mfc_plugins::ids::SILENT)
+    {
+        let resp = item(ui, Mark::Icon(Icon::Wave, pal::ACCENT), d.name, "", false)
             .on_hover_text(format!("{}\nClic: aggiunge un canale", d.description));
         if resp.clicked() {
             add_generator(studio, d.id);
@@ -123,12 +297,12 @@ fn generators(ui: &mut Ui, studio: &mut Studio) {
 }
 
 fn effects(ui: &mut Ui, studio: &mut Studio) {
-    ui.weak("Clic: aggiunge all'insert selezionato");
+    let insert = studio.selected_insert;
     for d in registry().iter().filter(|d| d.role == PluginRole::Effect) {
-        let resp = ui.selectable_label(false, d.name).on_hover_text(d.description);
+        let resp = item(ui, Mark::Icon(Icon::Plugin, pal::BLUE), d.name, "", false)
+            .on_hover_text(format!("{}\nClic: aggiunge all'insert {insert}", d.description));
         if resp.clicked() {
             if let Some(plugin) = default_instance(d.id) {
-                let insert = studio.selected_insert;
                 studio.exec(Command::AddEffect {
                     insert,
                     plugin,
@@ -147,11 +321,10 @@ fn automations(ui: &mut Ui, studio: &mut Studio) {
         .map(|a| (a.id, a.name.clone()))
         .collect();
     if items.is_empty() {
-        ui.weak("Nessuna automazione");
+        ui.label(RichText::new("   Nessuna automazione").color(pal::TEXT_FAINT));
     }
     for (id, name) in items {
-        let resp = ui
-            .selectable_label(false, name)
+        let resp = item(ui, Mark::Icon(Icon::Wave, pal::YELLOW), &name, "", false)
             .on_hover_text("Clic: piazza in fondo alla Playlist");
         if resp.clicked() {
             let track = next_free_track(&studio.project);
