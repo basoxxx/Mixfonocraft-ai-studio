@@ -67,7 +67,7 @@ avvio Gatekeeper la blocca. Aprila con click destro → *Apri*, oppure:
 anche una finestra console).
 
 Per pubblicare una nuova versione: aggiornare `version` in `Cargo.toml`, poi
-`git tag v0.1.0 && git push origin v0.1.0`.
+`git tag v0.1.0 && git push origin v0.1.0`, oppure avviare manualmente il workflow *Release* (Actions → Release → Run workflow) indicando il tag.
 
 ## Compilazione
 
