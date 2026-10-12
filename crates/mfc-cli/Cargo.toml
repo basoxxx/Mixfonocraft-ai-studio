@@ -1,0 +1,11 @@
+[package]
+name = "mfc-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "mixfonocraft"
+path = "src/main.rs"
+
+[dependencies]

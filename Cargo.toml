@@ -1,0 +1,48 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/mfc-core",
+    "crates/mfc-dsp",
+    "crates/mfc-plugins",
+    "crates/mfc-engine",
+    "crates/mfc-flp",
+    "crates/mfc-midi",
+    "crates/mfc-mcp",
+    "crates/mfc-gui",
+    "crates/mfc-cli",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/basoxxx/Mixfonocraft-ai-studio"
+rust-version = "1.80"
+
+[workspace.dependencies]
+mfc-core = { path = "crates/mfc-core" }
+mfc-dsp = { path = "crates/mfc-dsp" }
+mfc-plugins = { path = "crates/mfc-plugins" }
+mfc-engine = { path = "crates/mfc-engine" }
+mfc-flp = { path = "crates/mfc-flp" }
+mfc-midi = { path = "crates/mfc-midi" }
+mfc-mcp = { path = "crates/mfc-mcp" }
+mfc-gui = { path = "crates/mfc-gui" }
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+anyhow = "1"
+hound = "3.5"
+midly = "0.5"
+clap = { version = "4", features = ["derive"] }
+crossbeam-channel = "0.5"
+parking_lot = "0.12"
+tokio = { version = "1", features = ["full"] }
+schemars = "1"
+eframe = "0.36"
+egui = "0.36"
+cpal = "0.18"
+
+[profile.dev.package."*"]
+opt-level = 2
