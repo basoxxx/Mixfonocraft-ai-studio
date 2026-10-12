@@ -495,7 +495,7 @@ pub fn decode_text(data: &[u8], enc: TextEncoding) -> String {
         // ANSI: approssimato come Latin-1.
         TextEncoding::Ascii => data.iter().map(|&b| b as char).collect(),
         TextEncoding::Utf16 => {
-            let units = data.chunks_exact(2).map(|c| u16::from_le_bytes([c[0], c[1]]));
+            let units = data.as_chunks::<2>().0.iter().map(|c| u16::from_le_bytes(*c));
             char::decode_utf16(units)
                 .map(|r| r.unwrap_or(char::REPLACEMENT_CHARACTER))
                 .collect()

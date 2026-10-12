@@ -44,7 +44,11 @@ pub struct FlNote {
 
 impl FlNote {
     pub fn parse_all(d: &[u8]) -> Vec<FlNote> {
-        d.chunks_exact(NOTE_SIZE).filter_map(Self::parse).collect()
+        d.as_chunks::<NOTE_SIZE>()
+            .0
+            .iter()
+            .filter_map(|c| Self::parse(c))
+            .collect()
     }
     fn parse(c: &[u8]) -> Option<FlNote> {
         Some(FlNote {
@@ -163,7 +167,9 @@ pub struct FlMixerParam {
 impl FlMixerParam {
     pub const SIZE: usize = 12;
     pub fn parse_all(d: &[u8]) -> Vec<Self> {
-        d.chunks_exact(Self::SIZE)
+        d.as_chunks::<{ Self::SIZE }>()
+            .0
+            .iter()
             .filter_map(|c| {
                 let cd = u16_at(c, 6)?;
                 Some(Self {
