@@ -46,6 +46,15 @@ impl History {
         }
     }
 
+    /// Registra una modifica eseguita fuori dai comandi (es. import), dato lo stato precedente.
+    pub fn record(&mut self, label: impl Into<String>, before: Project) {
+        self.undo.push((label.into(), before));
+        if self.undo.len() > self.limit {
+            self.undo.remove(0);
+        }
+        self.redo.clear();
+    }
+
     pub fn undo(&mut self, project: &mut Project) -> Option<String> {
         let (label, prev) = self.undo.pop()?;
         let cur = std::mem::replace(project, prev);
