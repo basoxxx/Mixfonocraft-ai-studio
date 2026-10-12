@@ -37,8 +37,15 @@ pub enum EngineCommand {
     /// Loop in Song mode (tick inizio, tick fine). `None` = nessun loop.
     SetLoop(Option<(f64, f64)>),
     Install(Box<Prepared>),
-    PreviewOn { channel: ChannelId, key: u8, velocity: f32 },
-    PreviewOff { channel: ChannelId, key: u8 },
+    PreviewOn {
+        channel: ChannelId,
+        key: u8,
+        velocity: f32,
+    },
+    PreviewOff {
+        channel: ChannelId,
+        key: u8,
+    },
     AllNotesOff,
 }
 
@@ -76,7 +83,11 @@ impl SharedState {
     }
     /// Picco (L,R) dell'insert e azzera (lettura "consuma" il picco).
     pub fn take_meter(&self, insert: usize) -> (f32, f32) {
-        let get = |i: usize| self.meters.get(i).map_or(0.0, |a| f32::from_bits(a.swap(0, Ordering::Relaxed)));
+        let get = |i: usize| {
+            self.meters
+                .get(i)
+                .map_or(0.0, |a| f32::from_bits(a.swap(0, Ordering::Relaxed)))
+        };
         (get(insert * 2), get(insert * 2 + 1))
     }
     pub fn take_output_meter(&self) -> (f32, f32) {
@@ -221,7 +232,15 @@ impl Engine {
             capture: None,
         };
         shared.tempo_bits.store(engine.tempo.to_bits(), Ordering::Relaxed);
-        (engine, EngineHandle { tx, garbage: grx, shared, sample_rate })
+        (
+            engine,
+            EngineHandle {
+                tx,
+                garbage: grx,
+                shared,
+                sample_rate,
+            },
+        )
     }
 
     pub fn shared(&self) -> &Arc<SharedState> {
@@ -333,7 +352,10 @@ impl Engine {
     fn relocate(&mut self, tick: f64) {
         self.pos = tick;
         let pat = self.pattern_of_mode();
-        let idx = self.prep.sequence(pat).map_or(0, |s| s.events.partition_point(|e| e.on < tick));
+        let idx = self
+            .prep
+            .sequence(pat)
+            .map_or(0, |s| s.events.partition_point(|e| e.on < tick));
         self.next_event = idx;
     }
 
@@ -382,7 +404,9 @@ impl Engine {
     }
 
     fn samples_per_tick(&self) -> f64 {
-        self.prep.time.samples_per_tick(self.tempo.max(1.0), self.prep.sample_rate as f64)
+        self.prep
+            .time
+            .samples_per_tick(self.tempo.max(1.0), self.prep.sample_rate as f64)
     }
 
     /// Elabora un blocco audio. Scrive (non somma) in `left`/`right`.
@@ -476,7 +500,9 @@ impl Engine {
                 }
             };
             self.next_event += 1;
-            let Some(ch) = self.prep.channels.get_mut(ev.chan) else { continue };
+            let Some(ch) = self.prep.channels.get_mut(ev.chan) else {
+                continue;
+            };
             if ch.muted || ev.off <= self.pos {
                 continue;
             }
@@ -496,7 +522,11 @@ impl Engine {
                 start_offset_samples: ((ev.start_offset + late) * spt) as u64,
             });
             if self.active.len() < MAX_ACTIVE {
-                self.active.push(Active { chan: ev.chan, voice, off: ev.off });
+                self.active.push(Active {
+                    chan: ev.chan,
+                    voice,
+                    off: ev.off,
+                });
             } else {
                 ch.gen.note_off(voice);
             }
@@ -511,11 +541,15 @@ impl Engine {
             if !in_song || pos < a.start || pos >= a.end {
                 continue;
             }
-            let Some(v) = a.clip.real_value_at(pos - a.start + a.offset) else { continue };
+            let Some(v) = a.clip.real_value_at(pos - a.start + a.offset) else {
+                continue;
+            };
             match &a.target {
                 AutoTarget::MasterVolume => self.master_gain = mfc_core::fader_gain(v, mfc_core::MIXER_UNITY),
                 AutoTarget::Tempo => self.tempo = (v as f64).clamp(10.0, 999.0),
-                AutoTarget::ChannelVolume(c) => prep.channels[*c].gain = mfc_core::fader_gain(v, mfc_core::CHANNEL_UNITY),
+                AutoTarget::ChannelVolume(c) => {
+                    prep.channels[*c].gain = mfc_core::fader_gain(v, mfc_core::CHANNEL_UNITY)
+                }
                 AutoTarget::ChannelPan(c) => prep.channels[*c].pan = v.clamp(-1.0, 1.0),
                 AutoTarget::ChannelPitch(c) => {
                     let ch = &mut prep.channels[*c];

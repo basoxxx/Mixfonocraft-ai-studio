@@ -39,7 +39,11 @@ fn ok(id: Value, result: Value) -> Value {
 
 impl Server {
     pub fn new(session: Session) -> Self {
-        Self { session, tools: tools::all(), initialized: false }
+        Self {
+            session,
+            tools: tools::all(),
+            initialized: false,
+        }
     }
 
     pub fn tools(&self) -> &[Tool] {
@@ -55,7 +59,8 @@ impl Server {
         let id = msg.get("id").cloned();
         let Some(method) = msg.get("method").and_then(Value::as_str) else {
             // Risposte del client a nostre richieste: ignorate (non ne facciamo).
-            return id.filter(|_| msg.get("result").is_none() && msg.get("error").is_none())
+            return id
+                .filter(|_| msg.get("result").is_none() && msg.get("error").is_none())
                 .map(|id| error(id, -32600, "richiesta non valida"));
         };
         let params = msg.get("params").cloned().unwrap_or(Value::Null);
@@ -69,7 +74,10 @@ impl Server {
         Some(match method {
             "initialize" => {
                 let requested = params.get("protocolVersion").and_then(Value::as_str).unwrap_or("");
-                let version = PROTOCOL_VERSIONS.iter().find(|v| **v == requested).unwrap_or(&PROTOCOL_VERSIONS[0]);
+                let version = PROTOCOL_VERSIONS
+                    .iter()
+                    .find(|v| **v == requested)
+                    .unwrap_or(&PROTOCOL_VERSIONS[0]);
                 ok(
                     id,
                     json!({

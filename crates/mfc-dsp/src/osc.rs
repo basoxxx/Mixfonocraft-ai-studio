@@ -164,7 +164,7 @@ impl Oscillator {
 
     /// Campione successivo in -1..1 (circa).
     #[inline]
-    pub fn next(&mut self) -> f32 {
+    pub fn next_sample(&mut self) -> f32 {
         let dt = self.inc;
         let t = self.advance();
         match self.waveform {
@@ -203,7 +203,7 @@ mod tests {
         let mut o = Oscillator::new(48_000.0);
         o.set_waveform(wf);
         o.set_frequency(hz);
-        (0..n).map(|_| o.next()).collect()
+        (0..n).map(|_| o.next_sample()).collect()
     }
 
     #[test]
@@ -231,13 +231,13 @@ mod tests {
         o.set_waveform(Waveform::Square);
         o.set_pulse_width(0.25);
         o.set_frequency(100.0);
-        let x: Vec<f32> = (0..48_000).map(|_| o.next()).collect();
+        let x: Vec<f32> = (0..48_000).map(|_| o.next_sample()).collect();
         let pos = x.iter().filter(|v| **v > 0.0).count() as f32 / x.len() as f32;
         assert!((pos - 0.25).abs() < 0.01);
         o.reset(0.5);
         assert_eq!(o.phase(), 0.5);
         o.set_frequency(f32::NAN);
-        assert!(o.next().is_finite());
+        assert!(o.next_sample().is_finite());
     }
 
     #[test]

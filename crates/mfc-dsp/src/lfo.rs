@@ -79,7 +79,7 @@ impl Lfo {
 
     /// Valore corrente in -1..=1, poi avanza.
     #[inline]
-    pub fn next(&mut self) -> f32 {
+    pub fn next_sample(&mut self) -> f32 {
         let p = self.phase;
         let out = match self.shape {
             LfoShape::Sine => (TAU * p).sin(),
@@ -128,7 +128,7 @@ mod tests {
             let mut l = Lfo::new(1024.0);
             l.set_shape(shape);
             l.set_rate(2.0);
-            let x: Vec<f32> = (0..2048).map(|_| l.next()).collect();
+            let x: Vec<f32> = (0..2048).map(|_| l.next_sample()).collect();
             assert!(x.iter().all(|v| v.is_finite() && v.abs() <= 1.0), "{shape:?}");
             if shape != LfoShape::SampleHold {
                 assert!((x[0] - x[512]).abs() < 1e-3, "{shape:?} periodo");
@@ -141,10 +141,10 @@ mod tests {
         let mut l = Lfo::new(1024.0);
         l.set_shape(LfoShape::SampleHold);
         l.set_rate(8.0);
-        let a = l.next();
+        let a = l.next_sample();
         for _ in 0..127 {
-            assert_eq!(l.next(), a);
+            assert_eq!(l.next_sample(), a);
         }
-        assert_ne!(l.next(), a);
+        assert_ne!(l.next_sample(), a);
     }
 }

@@ -25,7 +25,9 @@ pub struct DeviceBackend {
 pub fn default_sample_rate() -> Result<u32, DeviceError> {
     let host = cpal::default_host();
     let dev = host.default_output_device().ok_or(DeviceError::NoDevice)?;
-    let cfg = dev.default_output_config().map_err(|e| DeviceError::Config(e.to_string()))?;
+    let cfg = dev
+        .default_output_config()
+        .map_err(|e| DeviceError::Config(e.to_string()))?;
     Ok(cfg.sample_rate())
 }
 
@@ -35,9 +37,14 @@ impl DeviceBackend {
     pub fn start(mut engine: Engine) -> Result<Self, DeviceError> {
         let host = cpal::default_host();
         let dev = host.default_output_device().ok_or(DeviceError::NoDevice)?;
-        let supported = dev.default_output_config().map_err(|e| DeviceError::Config(e.to_string()))?;
+        let supported = dev
+            .default_output_config()
+            .map_err(|e| DeviceError::Config(e.to_string()))?;
         if supported.sample_format() != cpal::SampleFormat::F32 {
-            return Err(DeviceError::Config(format!("formato {:?} non supportato", supported.sample_format())));
+            return Err(DeviceError::Config(format!(
+                "formato {:?} non supportato",
+                supported.sample_format()
+            )));
         }
         let config: cpal::StreamConfig = supported.into();
         let channels = config.channels;
@@ -68,6 +75,10 @@ impl DeviceBackend {
             )
             .map_err(|e| DeviceError::Stream(e.to_string()))?;
         stream.play().map_err(|e| DeviceError::Stream(e.to_string()))?;
-        Ok(Self { _stream: stream, sample_rate, channels })
+        Ok(Self {
+            _stream: stream,
+            sample_rate,
+            channels,
+        })
     }
 }

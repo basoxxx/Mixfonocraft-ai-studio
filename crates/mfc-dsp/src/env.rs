@@ -162,7 +162,7 @@ impl Adsr {
 
     /// Avanza di un campione e restituisce il livello 0..=1.
     #[inline]
-    pub fn next(&mut self) -> f32 {
+    pub fn next_sample(&mut self) -> f32 {
         match self.stage {
             Stage::Idle => {
                 self.level = 0.0;
@@ -265,7 +265,7 @@ impl ExpDecay {
 
     /// Restituisce il livello corrente e avanza.
     #[inline]
-    pub fn next(&mut self) -> f32 {
+    pub fn next_sample(&mut self) -> f32 {
         let l = self.level;
         if l > ENV_END {
             self.level *= self.coef;
@@ -293,7 +293,7 @@ mod tests {
             if env.stage() == stage {
                 return i;
             }
-            env.next();
+            env.next_sample();
         }
         max
     }
@@ -308,14 +308,14 @@ mod tests {
         let d = run_until(&mut e, Stage::Sustain, 100_000);
         assert!((d as f32 - 0.1 * SR).abs() / (0.1 * SR) < 0.02, "decay {d}");
         for _ in 0..1000 {
-            assert_eq!(e.next(), 0.5);
+            assert_eq!(e.next_sample(), 0.5);
         }
         e.note_off();
         let r = run_until(&mut e, Stage::Idle, 1_000_000);
         // Il release parte da 0.5: termina un po' prima del tempo nominale.
         assert!(r as f32 <= 0.2 * SR + 2.0 && r as f32 > 0.15 * SR, "release {r}");
         assert!(e.is_idle());
-        assert_eq!(e.next(), 0.0);
+        assert_eq!(e.next_sample(), 0.0);
     }
 
     #[test]
@@ -324,10 +324,10 @@ mod tests {
         e.set_adsr(0.0, 0.0, 1.0, 0.0);
         e.set_hold(0.01);
         e.note_on();
-        assert_eq!(e.next(), 1.0);
+        assert_eq!(e.next_sample(), 1.0);
         assert_eq!(e.stage(), Stage::Hold);
         e.note_off();
-        e.next();
+        e.next_sample();
         assert!(e.is_idle());
     }
 
@@ -337,15 +337,15 @@ mod tests {
         e.set_adsr(0.1, 0.1, 0.8, 0.5);
         e.note_on();
         for _ in 0..24_000 {
-            e.next();
+            e.next_sample();
         }
         e.note_off();
         for _ in 0..2_400 {
-            e.next();
+            e.next_sample();
         }
         let before = e.level();
         e.note_on();
-        let after = e.next();
+        let after = e.next_sample();
         assert!(after > before && after - before < 0.01);
     }
 
@@ -364,7 +364,7 @@ mod tests {
         d.trigger(1.0);
         let mut n = 0;
         while d.is_active() {
-            d.next();
+            d.next_sample();
             n += 1;
         }
         assert!((n as f32 - 0.1 * SR).abs() <= 2.0, "{n}");

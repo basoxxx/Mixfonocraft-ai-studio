@@ -118,7 +118,11 @@ pub fn render(project: &Project, opts: &RenderOptions) -> Result<Rendered, Rende
     engine.play();
     let max_frames = (opts.max_seconds * sr as f64) as usize;
     let block = 512;
-    let mut mix = Audio { sample_rate: sr, left: Vec::new(), right: Vec::new() };
+    let mut mix = Audio {
+        sample_rate: sr,
+        left: Vec::new(),
+        right: Vec::new(),
+    };
     let mut l = vec![0.0f32; block];
     let mut r = vec![0.0f32; block];
     // In modalità pattern il motore va in loop: si conta il tempo trascorso in tick.
@@ -129,7 +133,11 @@ pub fn render(project: &Project, opts: &RenderOptions) -> Result<Rendered, Rende
         mix.left.extend_from_slice(&l);
         mix.right.extend_from_slice(&r);
         let pos = engine.position();
-        elapsed_ticks += if pos >= last_pos { pos - last_pos } else { engine.sequence_length() - last_pos + pos };
+        elapsed_ticks += if pos >= last_pos {
+            pos - last_pos
+        } else {
+            engine.sequence_length() - last_pos + pos
+        };
         last_pos = pos;
     }
     // Taglio preciso alla fine musicale.
@@ -178,7 +186,11 @@ pub fn render(project: &Project, opts: &RenderOptions) -> Result<Rendered, Rende
             stems.push(Stem {
                 insert: i as u16,
                 name: names.get(i).cloned().unwrap_or_default(),
-                audio: Audio { sample_rate: sr, left: cl, right: cr },
+                audio: Audio {
+                    sample_rate: sr,
+                    left: cl,
+                    right: cr,
+                },
             });
         }
     }
@@ -203,7 +215,12 @@ pub fn write_wav(path: impl AsRef<Path>, audio: &Audio, format: WavFormat) -> Re
         WavFormat::Int24 => (24, hound::SampleFormat::Int),
         WavFormat::Float32 => (32, hound::SampleFormat::Float),
     };
-    let spec = hound::WavSpec { channels: 2, sample_rate: audio.sample_rate, bits_per_sample: bits, sample_format: fmt };
+    let spec = hound::WavSpec {
+        channels: 2,
+        sample_rate: audio.sample_rate,
+        bits_per_sample: bits,
+        sample_format: fmt,
+    };
     let mut w = hound::WavWriter::create(path, spec)?;
     for (l, r) in audio.left.iter().zip(&audio.right) {
         for s in [*l, *r] {
@@ -231,7 +248,11 @@ pub fn render_to_file(
     if opts.stems {
         let stem_base = path.with_extension("");
         for s in &out.stems {
-            let safe: String = s.name.chars().map(|c| if c.is_alphanumeric() { c } else { '_' }).collect();
+            let safe: String = s
+                .name
+                .chars()
+                .map(|c| if c.is_alphanumeric() { c } else { '_' })
+                .collect();
             let p = format!("{}_{:03}_{}.wav", stem_base.display(), s.insert, safe);
             write_wav(p, &s.audio, format)?;
         }

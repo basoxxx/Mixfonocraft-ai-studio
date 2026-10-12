@@ -29,20 +29,56 @@ pub struct ParamDesc {
 }
 
 impl ParamDesc {
-    pub const fn new(name: &'static str, label: &'static str, min: f32, max: f32, default: f32, unit: &'static str) -> Self {
-        Self { name, label, min, max, default, unit, choices: &[] }
+    pub const fn new(
+        name: &'static str,
+        label: &'static str,
+        min: f32,
+        max: f32,
+        default: f32,
+        unit: &'static str,
+    ) -> Self {
+        Self {
+            name,
+            label,
+            min,
+            max,
+            default,
+            unit,
+            choices: &[],
+        }
     }
-    pub const fn choice(name: &'static str, label: &'static str, choices: &'static [&'static str], default: usize) -> Self {
-        Self { name, label, min: 0.0, max: (choices.len() - 1) as f32, default: default as f32, unit: "", choices }
+    pub const fn choice(
+        name: &'static str,
+        label: &'static str,
+        choices: &'static [&'static str],
+        default: usize,
+    ) -> Self {
+        Self {
+            name,
+            label,
+            min: 0.0,
+            max: (choices.len() - 1) as f32,
+            default: default as f32,
+            unit: "",
+            choices,
+        }
     }
     /// Converte un valore reale in 0..=1.
     pub fn normalize(&self, v: f32) -> f32 {
-        if self.max == self.min { 0.0 } else { ((v - self.min) / (self.max - self.min)).clamp(0.0, 1.0) }
+        if self.max == self.min {
+            0.0
+        } else {
+            ((v - self.min) / (self.max - self.min)).clamp(0.0, 1.0)
+        }
     }
     /// Converte 0..=1 in valore reale.
     pub fn denormalize(&self, n: f32) -> f32 {
         let v = self.min + (self.max - self.min) * n.clamp(0.0, 1.0);
-        if self.choices.is_empty() { v } else { v.round() }
+        if self.choices.is_empty() {
+            v
+        } else {
+            v.round()
+        }
     }
     pub fn clamp(&self, v: f32) -> f32 {
         v.clamp(self.min.min(self.max), self.max.max(self.min))

@@ -271,9 +271,9 @@ fn topo_order(inserts: &mut [InsertRt]) -> Vec<usize> {
         }
     }
     // Nodi in ciclo: elaborati in ordine di indice, mandate verso nodi già elaborati rimosse.
-    for i in 0..n {
-        if !done[i] && i != MASTER as usize {
-            done[i] = true;
+    for (i, d) in done.iter_mut().enumerate() {
+        if !*d && i != MASTER as usize {
+            *d = true;
             order.push(i);
         }
     }
@@ -369,7 +369,10 @@ fn push_pattern_notes(
         let ch = &project.channels[ci];
         // Canali layer: inoltra ai figli.
         let targets: Vec<usize> = if ch.kind == ChannelKind::Layer {
-            ch.layer_children.iter().filter_map(|c| chan_index.get(c).copied()).collect()
+            ch.layer_children
+                .iter()
+                .filter_map(|c| chan_index.get(c).copied())
+                .collect()
         } else {
             vec![ci]
         };
@@ -407,7 +410,10 @@ fn build_song(project: &Project, chan_index: &HashMap<ChannelId, usize>) -> Sequ
         }
         match clip.source {
             ClipSource::Pattern(pid) => {
-                let pat_len = project.pattern(pid).map(|p| p.effective_length(&project.time)).unwrap_or(0) as f64;
+                let pat_len = project
+                    .pattern(pid)
+                    .map(|p| p.effective_length(&project.time))
+                    .unwrap_or(0) as f64;
                 if pat_len <= 0.0 {
                     continue;
                 }
@@ -450,13 +456,18 @@ fn build_song(project: &Project, chan_index: &HashMap<ChannelId, usize>) -> Sequ
         }
     }
     events.sort_by(|a, b| a.on.total_cmp(&b.on));
-    Sequence { events, length: project.song_length() as f64 }
+    Sequence {
+        events,
+        length: project.song_length() as f64,
+    }
 }
 
 fn build_automations(project: &Project, chan_index: &HashMap<ChannelId, usize>) -> Vec<AutoRt> {
     let mut out = Vec::new();
     for clip in &project.playlist.clips {
-        let ClipSource::Automation(aid) = clip.source else { continue };
+        let ClipSource::Automation(aid) = clip.source else {
+            continue;
+        };
         if clip.muted || project.playlist.track_muted(clip.track) {
             continue;
         }

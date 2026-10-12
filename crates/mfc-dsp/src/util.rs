@@ -168,7 +168,7 @@ impl Smoother {
 
     /// Avanza di un campione e restituisce il valore corrente.
     #[inline]
-    pub fn next(&mut self) -> f32 {
+    pub fn next_sample(&mut self) -> f32 {
         if self.current != self.target {
             let next = self.target + (self.current - self.target) * self.coef;
             // Aggancio al target quando l'arrotondamento f32 non fa più progressi.
@@ -230,10 +230,10 @@ mod tests {
     fn smoother_converges() {
         let mut s = Smoother::new(0.01, 48_000.0, 0.0);
         s.set_target(1.0);
-        let first = s.next();
+        let first = s.next_sample();
         assert!(first > 0.0 && first < 0.01);
         for _ in 0..48_000 {
-            s.next();
+            s.next_sample();
         }
         assert!(s.is_settled(), "{} {}", s.value(), s.target());
         assert_eq!(s.value(), 1.0);

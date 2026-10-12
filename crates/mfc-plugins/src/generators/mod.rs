@@ -21,7 +21,11 @@ pub(crate) const OFF_ON: &[&str] = &["off", "on"];
 /// Crea il generatore indicato da `inst.kind` (sconosciuto → silenzioso).
 /// Per sampler e audio clip carica `inst.sample_path` (fallimento → silenzioso). Non real-time.
 pub fn create(inst: &PluginInstance) -> Box<dyn Generator> {
-    let load = || inst.sample_path.as_deref().and_then(|p| crate::sample::load_sample(p).ok());
+    let load = || {
+        inst.sample_path
+            .as_deref()
+            .and_then(|p| crate::sample::load_sample(p).ok())
+    };
     match inst.kind.as_str() {
         ids::SAMPLER => Box::new(sampler::Sampler::new(load())),
         ids::AUDIO_CLIP => Box::new(sampler::Sampler::new_audio_clip(load())),
@@ -92,28 +96,4 @@ pub(crate) fn count_active<V: PolyVoice>(voices: &[V]) -> usize {
 #[inline]
 pub(crate) fn frames(left: &[f32], right: &[f32]) -> usize {
     left.len().min(right.len())
-}
-
-#[cfg(test)]
-pub(crate) mod test_util {
-    /// Stima la frequenza dominante contando gli attraversamenti dello zero (ascendenti).
-    pub fn zero_cross_freq(x: &[f32], sample_rate: f32) -> f32 {
-        let mut first = None;
-        let mut last = 0;
-        let mut count = 0usize;
-        for i in 1..x.len() {
-            if x[i - 1] < 0.0 && x[i] >= 0.0 {
-                if first.is_none() {
-                    first = Some(i);
-                } else {
-                    count += 1;
-                }
-                last = i;
-            }
-        }
-        match first {
-            Some(f) if count > 0 => count as f32 * sample_rate / (last - f) as f32,
-            _ => 0.0,
-        }
-    }
 }

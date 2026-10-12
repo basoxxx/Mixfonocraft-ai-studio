@@ -262,7 +262,9 @@ impl Generator for Osc3 {
     }
 
     fn set_param(&mut self, name: &str, value: f32) {
-        let Some(v) = param_value(&DESCRIPTOR, name, value) else { return };
+        let Some(v) = param_value(&DESCRIPTOR, name, value) else {
+            return;
+        };
         if let Some(rest) = name.strip_prefix("osc") {
             if let Some((i, field)) = rest.split_once('_') {
                 if let Ok(i @ 1..=3) = i.parse::<usize>() {
@@ -293,7 +295,11 @@ impl Generator for Osc3 {
     fn note_on(&mut self, note: NoteOn) {
         let key = note.key.min(127);
         let target = key as f32;
-        let fine = if note.fine_pitch_cents.is_finite() { note.fine_pitch_cents } else { 0.0 };
+        let fine = if note.fine_pitch_cents.is_finite() {
+            note.fine_pitch_cents
+        } else {
+            0.0
+        };
         let glide_samples = (self.glide * self.sr).max(1.0);
         // Nota slide: fa scivolare la voce tenuta più recente senza crearne una nuova.
         if note.slide {
@@ -319,7 +325,12 @@ impl Generator for Osc3 {
         self.order += 1;
         let (gl, gr) = balance_gains(note.pan);
         let v = &mut self.voices[idx];
-        v.tag = VoiceTag { active: true, released: false, id: note.voice_id, order: self.order };
+        v.tag = VoiceTag {
+            active: true,
+            released: false,
+            id: note.voice_id,
+            order: self.order,
+        };
         v.key = key;
         v.fine = fine;
         v.vel = note.velocity.clamp(0.0, 1.0);
@@ -377,14 +388,18 @@ impl Generator for Osc3 {
                 if v.pitch != v.target {
                     let step = v.glide_rate * (end - start) as f32;
                     let diff = v.target - v.pitch;
-                    v.pitch = if diff.abs() <= step { v.target } else { v.pitch + step.copysign(diff) };
+                    v.pitch = if diff.abs() <= step {
+                        v.target
+                    } else {
+                        v.pitch + step.copysign(diff)
+                    };
                 }
                 Self::update_freqs(v, &oscs, offset);
                 for i in start..end {
                     let (mut l, mut r) = (0.0, 0.0);
                     for (o, p) in v.osc.iter_mut().zip(&oscs) {
                         let (a, b) = match p.shape {
-                            Shape::Basic(_) => (o[0].next(), o[1].next()),
+                            Shape::Basic(_) => (o[0].next_sample(), o[1].next_sample()),
                             Shape::RoundedSaw => (rounded_saw(o[0].advance()), rounded_saw(o[1].advance())),
                             Shape::Noise => {
                                 let x = v.rng.next_bipolar() * 0.7;
@@ -398,7 +413,7 @@ impl Generator for Osc3 {
                         l = v.svf[0].process(l);
                         r = v.svf[1].process(r);
                     }
-                    let e = v.env.next() * gain;
+                    let e = v.env.next_sample() * gain;
                     left[i] += l * e * v.gl;
                     right[i] += r * e * v.gr;
                     if v.env.is_idle() {

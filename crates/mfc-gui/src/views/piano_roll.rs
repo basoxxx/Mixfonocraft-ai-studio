@@ -24,7 +24,15 @@ pub enum Snap {
 }
 
 impl Snap {
-    pub const ALL: [Snap; 7] = [Snap::None, Snap::Sixth, Snap::Quarter, Snap::Half, Snap::Step, Snap::Beat, Snap::Bar];
+    pub const ALL: [Snap; 7] = [
+        Snap::None,
+        Snap::Sixth,
+        Snap::Quarter,
+        Snap::Half,
+        Snap::Step,
+        Snap::Beat,
+        Snap::Bar,
+    ];
     pub fn label(self) -> &'static str {
         match self {
             Snap::None => "(nessuno)",
@@ -123,9 +131,17 @@ pub fn replace_note_cmd(pattern: PatternId, channel: ChannelId, old: &Note, new:
             Command::RemoveNotes {
                 pattern,
                 channel,
-                filter: NoteFilter { from: Some(old.position), to: Some(old.position + 1), key: Some(old.key) },
+                filter: NoteFilter {
+                    from: Some(old.position),
+                    to: Some(old.position + 1),
+                    key: Some(old.key),
+                },
             },
-            Command::AddNotes { pattern, channel, notes: vec![new] },
+            Command::AddNotes {
+                pattern,
+                channel,
+                notes: vec![new],
+            },
         ],
     }
 }
@@ -141,45 +157,77 @@ impl PianoRoll {
 
         // Barra strumenti.
         ui.horizontal(|ui| {
-            let ch_name = studio.project.channel(channel).map(|c| c.name.clone()).unwrap_or_default();
+            let ch_name = studio
+                .project
+                .channel(channel)
+                .map(|c| c.name.clone())
+                .unwrap_or_default();
             ui.strong(format!("Piano Roll — {ch_name}"));
             ui.separator();
-            egui::ComboBox::from_id_salt("pr_snap").selected_text(self.snap.label()).show_ui(ui, |ui| {
-                for s in Snap::ALL {
-                    ui.selectable_value(&mut self.snap, s, s.label());
-                }
-            });
+            egui::ComboBox::from_id_salt("pr_snap")
+                .selected_text(self.snap.label())
+                .show_ui(ui, |ui| {
+                    for s in Snap::ALL {
+                        ui.selectable_value(&mut self.snap, s, s.label());
+                    }
+                });
             ui.label("Vel");
             ui.add(egui::Slider::new(&mut self.velocity, 0.0..=1.0).show_value(false));
             ui.label("Zoom");
-            ui.add(egui::Slider::new(&mut self.zoom_x, 0.1..=3.0).logarithmic(true).show_value(false));
+            ui.add(
+                egui::Slider::new(&mut self.zoom_x, 0.1..=3.0)
+                    .logarithmic(true)
+                    .show_value(false),
+            );
             ui.checkbox(&mut self.show_ghosts, "Ghost");
             if ui.button("Quantizza").clicked() {
-                studio.exec(Command::QuantizeNotes { pattern, channel: Some(channel), grid: snap, quantize_length: false });
+                studio.exec(Command::QuantizeNotes {
+                    pattern,
+                    channel: Some(channel),
+                    grid: snap,
+                    quantize_length: false,
+                });
             }
             if ui.button("Svuota").clicked() {
-                studio.exec(Command::RemoveNotes { pattern, channel, filter: NoteFilter::default() });
+                studio.exec(Command::RemoveNotes {
+                    pattern,
+                    channel,
+                    filter: NoteFilter::default(),
+                });
             }
             for (label, st) in [("−12", -12), ("−1", -1), ("+1", 1), ("+12", 12)] {
                 if ui.small_button(label).clicked() {
-                    studio.exec(Command::TransposeNotes { pattern, channel: Some(channel), semitones: st });
+                    studio.exec(Command::TransposeNotes {
+                        pattern,
+                        channel: Some(channel),
+                        semitones: st,
+                    });
                 }
             }
         });
 
-        let Some(pat) = studio.project.pattern(pattern) else { return };
+        let Some(pat) = studio.project.pattern(pattern) else {
+            return;
+        };
         let len = pat.effective_length(&tb).max(tb.ticks_per_bar() * 4) + tb.ticks_per_bar();
         let width = KEYS_W + len as f32 * self.zoom_x;
         let height = 128.0 * self.key_h;
         let notes: Vec<Note> = pat.notes.get(&channel).cloned().unwrap_or_default();
         let ghosts: Vec<Note> = if self.show_ghosts {
-            pat.notes.iter().filter(|(c, _)| **c != channel).flat_map(|(_, v)| v.iter().copied()).collect()
+            pat.notes
+                .iter()
+                .filter(|(c, _)| **c != channel)
+                .flat_map(|(_, v)| v.iter().copied())
+                .collect()
         } else {
             Vec::new()
         };
-        let playhead = (!studio.song_mode && studio.engine.shared.is_playing()).then(|| studio.engine.shared.position());
+        let playhead =
+            (!studio.song_mode && studio.engine.shared.is_playing()).then(|| studio.engine.shared.position());
 
-        let mut scroll = egui::ScrollArea::both().id_salt("piano_roll_scroll").auto_shrink([false, false]);
+        let mut scroll = egui::ScrollArea::both()
+            .id_salt("piano_roll_scroll")
+            .auto_shrink([false, false]);
         if !self.scrolled {
             // Centra sull'area C4–C6 al primo disegno.
             scroll = scroll.vertical_scroll_offset((127.0 - 84.0) * self.key_h);
@@ -207,8 +255,19 @@ impl PianoRoll {
                 painter.rect_filled(row, 0.0, if is_black(k) { dark } else { bg });
                 // Tastiera.
                 let key_rect = Rect::from_min_size(pos2(origin.x, y), vec2(KEYS_W, self.key_h));
-                painter.rect_filled(key_rect, 0.0, if is_black(k) { Color32::from_gray(30) } else { Color32::from_gray(220) });
-                painter.line_segment([key_rect.left_bottom(), key_rect.right_bottom()], Stroke::new(0.5, Color32::from_gray(90)));
+                painter.rect_filled(
+                    key_rect,
+                    0.0,
+                    if is_black(k) {
+                        Color32::from_gray(30)
+                    } else {
+                        Color32::from_gray(220)
+                    },
+                );
+                painter.line_segment(
+                    [key_rect.left_bottom(), key_rect.right_bottom()],
+                    Stroke::new(0.5, Color32::from_gray(90)),
+                );
                 if k % 12 == 0 {
                     painter.text(
                         key_rect.right_center() - vec2(3.0, 0.0),
@@ -232,13 +291,19 @@ impl PianoRoll {
                     } else {
                         0.3
                     };
-                    painter.line_segment([pos2(x, origin.y), pos2(x, origin.y + height)], Stroke::new(w, visual.weak_text_color()));
+                    painter.line_segment(
+                        [pos2(x, origin.y), pos2(x, origin.y + height)],
+                        Stroke::new(w, visual.weak_text_color()),
+                    );
                 }
                 t += grid;
             }
 
             let note_rect = |n: &Note| {
-                Rect::from_min_max(pos2(x_of(n.position as f64), y_of(n.key)), pos2(x_of(n.end() as f64), y_of(n.key) + self.key_h))
+                Rect::from_min_max(
+                    pos2(x_of(n.position as f64), y_of(n.key)),
+                    pos2(x_of(n.end() as f64), y_of(n.key) + self.key_h),
+                )
             };
             for g in &ghosts {
                 painter.rect_filled(note_rect(g), 2.0, Color32::from_rgba_unmultiplied(120, 120, 120, 50));
@@ -246,7 +311,11 @@ impl PianoRoll {
 
             // Note del canale (quella trascinata viene disegnata nella posizione provvisoria).
             let pointer = resp.interact_pointer_pos().or(resp.hover_pos());
-            let drag_preview = self.drag.as_ref().zip(pointer).map(|(d, p)| (d.note, dragged_note(d, p - d.origin, self.zoom_x, self.key_h, snap)));
+            let drag_preview = self
+                .drag
+                .as_ref()
+                .zip(pointer)
+                .map(|(d, p)| (d.note, dragged_note(d, p - d.origin, self.zoom_x, self.key_h, snap)));
             for n in &notes {
                 let shown = match drag_preview {
                     Some((orig, moved)) if orig == *n => moved,
@@ -254,16 +323,34 @@ impl PianoRoll {
                 };
                 let r = note_rect(&shown);
                 let a = (0.35 + 0.65 * shown.velocity).clamp(0.0, 1.0);
-                let fill = Color32::from_rgb((110.0 * a + 60.0) as u8, (200.0 * a + 40.0) as u8, (120.0 * a + 50.0) as u8);
+                let fill = Color32::from_rgb(
+                    (110.0 * a + 60.0) as u8,
+                    (200.0 * a + 40.0) as u8,
+                    (120.0 * a + 50.0) as u8,
+                );
                 painter.rect_filled(r, 2.0, fill);
-                painter.rect_stroke(r, 2.0, Stroke::new(1.0, Color32::from_black_alpha(160)), StrokeKind::Inside);
+                painter.rect_stroke(
+                    r,
+                    2.0,
+                    Stroke::new(1.0, Color32::from_black_alpha(160)),
+                    StrokeKind::Inside,
+                );
                 if shown.slide {
-                    painter.text(r.left_center() + vec2(3.0, 0.0), Align2::LEFT_CENTER, "↗", FontId::proportional(9.0), Color32::BLACK);
+                    painter.text(
+                        r.left_center() + vec2(3.0, 0.0),
+                        Align2::LEFT_CENTER,
+                        "↗",
+                        FontId::proportional(9.0),
+                        Color32::BLACK,
+                    );
                 }
             }
             if let Some(ph) = playhead {
                 let x = x_of(ph);
-                painter.line_segment([pos2(x, origin.y), pos2(x, origin.y + height)], Stroke::new(1.5, Color32::from_rgb(255, 120, 60)));
+                painter.line_segment(
+                    [pos2(x, origin.y), pos2(x, origin.y + height)],
+                    Stroke::new(1.5, Color32::from_rgb(255, 120, 60)),
+                );
             }
 
             // Interazione.
@@ -271,8 +358,16 @@ impl PianoRoll {
             if resp.drag_started() {
                 if let Some(p) = resp.interact_pointer_pos() {
                     if let Some(n) = hit(p) {
-                        let kind = if p.x > note_rect(&n).right() - RESIZE_PX { DragKind::Resize } else { DragKind::Move };
-                        self.drag = Some(Drag { note: n, kind, origin: p });
+                        let kind = if p.x > note_rect(&n).right() - RESIZE_PX {
+                            DragKind::Resize
+                        } else {
+                            DragKind::Move
+                        };
+                        self.drag = Some(Drag {
+                            note: n,
+                            kind,
+                            origin: p,
+                        });
                     }
                 }
             }
@@ -292,7 +387,11 @@ impl PianoRoll {
                             let pos = tick_at(p.x) / snap * snap;
                             let key = key_at(p.y);
                             let note = Note::new(pos, self.new_length.max(1), key, self.velocity);
-                            studio.exec(Command::AddNotes { pattern, channel, notes: vec![note] });
+                            studio.exec(Command::AddNotes {
+                                pattern,
+                                channel,
+                                notes: vec![note],
+                            });
                             studio.engine.preview_on(channel, key, self.velocity);
                             studio.engine.preview_off(channel, key);
                         }
@@ -309,7 +408,11 @@ impl PianoRoll {
                     studio.exec(Command::RemoveNotes {
                         pattern,
                         channel,
-                        filter: NoteFilter { from: Some(n.position), to: Some(n.position + 1), key: Some(n.key) },
+                        filter: NoteFilter {
+                            from: Some(n.position),
+                            to: Some(n.position + 1),
+                            key: Some(n.key),
+                        },
                     });
                 }
             }
@@ -334,11 +437,18 @@ mod tests {
 
     #[test]
     fn drag_math() {
-        let d = Drag { note: Note::new(24, 24, 60, 1.0), kind: DragKind::Move, origin: pos2(0.0, 0.0) };
+        let d = Drag {
+            note: Note::new(24, 24, 60, 1.0),
+            kind: DragKind::Move,
+            origin: pos2(0.0, 0.0),
+        };
         // 48 px a zoom 1 = 48 tick a destra, 2 tasti su.
         let n = dragged_note(&d, vec2(48.0, -24.0), 1.0, 12.0, 24);
         assert_eq!((n.position, n.key), (72, 62));
-        let d = Drag { kind: DragKind::Resize, ..d };
+        let d = Drag {
+            kind: DragKind::Resize,
+            ..d
+        };
         let n = dragged_note(&d, vec2(-100.0, 0.0), 1.0, 12.0, 24);
         assert!(n.length >= 1 && n.position == 24);
     }

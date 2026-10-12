@@ -35,7 +35,10 @@ impl NullBackend {
             }
             engine
         });
-        Self { stop, thread: Some(thread) }
+        Self {
+            stop,
+            thread: Some(thread),
+        }
     }
 
     /// Ferma il thread e restituisce il motore.

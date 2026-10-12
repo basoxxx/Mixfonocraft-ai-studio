@@ -4,7 +4,7 @@
 //! inviluppi, filtri, LFO, delay line, interpolazione, dinamica e misuratori.
 //!
 //! Regola generale: le allocazioni avvengono solo nei costruttori (es. [`delay::DelayLine::new`]);
-//! i metodi per campione (`next`, `process`, `tick`...) non allocano né bloccano.
+//! i metodi per campione (`next_sample`, `process`, `tick`...) non allocano né bloccano.
 
 pub mod delay;
 pub mod dynamics;

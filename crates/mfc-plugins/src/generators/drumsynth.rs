@@ -7,7 +7,16 @@ use mfc_dsp::{balance_gains, semitones_to_ratio, soft_clip, time_coef, ExpDecay,
 use std::f32::consts::TAU;
 
 /// Suoni disponibili (valore del parametro `type`).
-pub const TYPES: &[&str] = &["kick", "snare", "clap", "closed_hat", "open_hat", "tom", "rim", "cowbell"];
+pub const TYPES: &[&str] = &[
+    "kick",
+    "snare",
+    "clap",
+    "closed_hat",
+    "open_hat",
+    "tom",
+    "rim",
+    "cowbell",
+];
 
 pub static DESCRIPTOR: PluginDescriptor = PluginDescriptor {
     id: ids::DRUMSYNTH,
@@ -100,6 +109,9 @@ struct Voice {
     /// Normalizzazione del passa-banda (1/Q).
     bp_norm: f32,
     burst_len: u32,
+    /// Ri-attacchi rimanenti del clap e campioni al prossimo.
+    bursts: u8,
+    burst_timer: u32,
     f1: Svf,
     hp: OnePole,
 }
@@ -131,6 +143,8 @@ impl Voice {
             pcoef: 0.0,
             bp_norm: 1.0,
             burst_len: 1,
+            bursts: 0,
+            burst_timer: 0,
             f1: Svf::new(sr),
             hp: OnePole::new(1000.0, sr),
         }
@@ -144,6 +158,7 @@ impl Voice {
             e.reset();
         }
         self.ph = [0.0; 6];
+        self.bursts = 0;
         self.penv = 1.0;
         self.t = 0;
         self.f1.set_sample_rate(sr);
@@ -169,6 +184,8 @@ impl Voice {
             }
             Kind::Clap => {
                 self.burst_len = ((0.009 * sr) as u32).max(1);
+                self.bursts = 2;
+                self.burst_timer = self.burst_len;
                 self.aux.set_time(0.012);
                 self.aux.trigger(1.0);
                 self.noise.set_time(0.3 * dm);
@@ -179,7 +196,12 @@ impl Voice {
                 self.body.set_time(len * dm);
                 self.body.trigger(1.0);
                 self.hp.set_cutoff(6500.0, sr);
-                bp(&mut self.f1, SvfMode::Bandpass, (8000.0 + 4000.0 * tone).min(0.45 * sr), 1.2)
+                bp(
+                    &mut self.f1,
+                    SvfMode::Bandpass,
+                    (8000.0 + 4000.0 * tone).min(0.45 * sr),
+                    1.2,
+                )
             }
             Kind::Tom => {
                 self.pcoef = time_coef(0.06, sr);
@@ -194,14 +216,24 @@ impl Voice {
                 self.body.trigger(1.0);
                 self.aux.set_time(0.012 * dm);
                 self.aux.trigger(1.0);
-                bp(&mut self.f1, SvfMode::Bandpass, (2500.0 + 2000.0 * tone).min(0.45 * sr), 2.5)
+                bp(
+                    &mut self.f1,
+                    SvfMode::Bandpass,
+                    (2500.0 + 2000.0 * tone).min(0.45 * sr),
+                    2.5,
+                )
             }
             Kind::Cowbell => {
                 self.aux.set_time(0.06);
                 self.aux.trigger(0.6);
                 self.body.set_time(0.4 * dm);
                 self.body.trigger(0.4);
-                bp(&mut self.f1, SvfMode::Bandpass, (800.0 * (0.8 + 0.4 * tone) * r).min(0.45 * sr), 3.0)
+                bp(
+                    &mut self.f1,
+                    SvfMode::Bandpass,
+                    (800.0 * (0.8 + 0.4 * tone) * r).min(0.45 * sr),
+                    3.0,
+                )
             }
         };
         self.bp_norm = 1.0 / q;
@@ -215,26 +247,31 @@ impl Voice {
             Kind::Kick => {
                 let f = (45.0 + 30.0 * self.tone) * r * (1.0 + 3.0 * self.penv);
                 self.penv *= self.pcoef;
-                let body = (TAU * advance(&mut self.ph[0], f * dt)).sin() * self.body.next();
-                body + self.hp.highpass(noise) * self.aux.next() * 0.5
+                let body = (TAU * advance(&mut self.ph[0], f * dt)).sin() * self.body.next_sample();
+                body + self.hp.highpass(noise) * self.aux.next_sample() * 0.5
             }
             Kind::Snare => {
                 let bend = 1.0 + 0.3 * self.penv;
                 self.penv *= self.pcoef;
                 let a = (TAU * advance(&mut self.ph[0], 185.0 * r * bend * dt)).sin();
                 let b = (TAU * advance(&mut self.ph[1], 330.0 * r * bend * dt)).sin();
-                let body = (a + 0.6 * b) * 0.6 * self.body.next() * (1.0 - 0.5 * self.snappy);
-                let n = self.f1.process(noise) * self.noise.next() * (0.3 + 0.9 * self.snappy);
+                let body = (a + 0.6 * b) * 0.6 * self.body.next_sample() * (1.0 - 0.5 * self.snappy);
+                let n = self.f1.process(noise) * self.noise.next_sample() * (0.3 + 0.9 * self.snappy);
                 body + 0.8 * n
             }
             Kind::Clap => {
-                if self.t > 0 && self.t < 3 * self.burst_len && self.t % self.burst_len == 0 {
-                    self.aux.trigger(1.0);
+                if self.bursts > 0 {
+                    self.burst_timer = self.burst_timer.saturating_sub(1);
+                    if self.burst_timer == 0 {
+                        self.aux.trigger(1.0);
+                        self.bursts -= 1;
+                        self.burst_timer = self.burst_len;
+                    }
                 }
                 if self.t == 3 * self.burst_len {
                     self.noise.trigger(0.8);
                 }
-                let e = self.aux.next() + self.noise.next();
+                let e = self.aux.next_sample() + self.noise.next_sample();
                 self.f1.process(noise) * self.bp_norm * e * 1.6
             }
             Kind::ClosedHat | Kind::OpenHat => {
@@ -245,23 +282,25 @@ impl Voice {
                 }
                 let x = metal / 6.0 * (1.0 - 0.5 * self.snappy) + noise * 0.5 * self.snappy;
                 let band = self.f1.process(x) * self.bp_norm;
-                self.hp.highpass(band) * self.body.next() * 1.8
+                self.hp.highpass(band) * self.body.next_sample() * 1.8
             }
             Kind::Tom => {
                 let f = (80.0 + 120.0 * self.tone) * r * (1.0 + 0.6 * self.penv);
                 self.penv *= self.pcoef;
-                let body = (TAU * advance(&mut self.ph[0], f * dt)).sin() * self.body.next();
-                body + noise * self.aux.next() * 0.3
+                let body = (TAU * advance(&mut self.ph[0], f * dt)).sin() * self.body.next_sample();
+                body + noise * self.aux.next_sample() * 0.3
             }
             Kind::Rim => {
-                let a = (TAU * advance(&mut self.ph[0], 1700.0 * r * dt)).sin() * self.body.next();
-                let n = self.f1.process(noise) * self.bp_norm * self.aux.next();
+                let a = (TAU * advance(&mut self.ph[0], 1700.0 * r * dt)).sin() * self.body.next_sample();
+                let n = self.f1.process(noise) * self.bp_norm * self.aux.next_sample();
                 0.6 * a + 0.8 * n
             }
             Kind::Cowbell => {
-                let x = 0.5 * (square(advance(&mut self.ph[0], 540.0 * r * dt)) + square(advance(&mut self.ph[1], 800.0 * r * dt)));
+                let x = 0.5
+                    * (square(advance(&mut self.ph[0], 540.0 * r * dt))
+                        + square(advance(&mut self.ph[1], 800.0 * r * dt)));
                 let band = self.f1.process(x) * self.bp_norm;
-                band * (self.aux.next() + self.body.next()) * 2.0
+                band * (self.aux.next_sample() + self.body.next_sample()) * 2.0
             }
         };
         self.t = self.t.saturating_add(1);
@@ -296,7 +335,9 @@ impl Default for DrumSynth {
 
 impl DrumSynth {
     pub fn new() -> Self {
-        let voices = (0..VOICES).map(|i| Voice::new(DEFAULT_SR, 0xD0_0000 + i as u32)).collect();
+        let voices = (0..VOICES)
+            .map(|i| Voice::new(DEFAULT_SR, 0xD0_0000 + i as u32))
+            .collect();
         let mut s = Self {
             sr: DEFAULT_SR,
             voices,
@@ -330,7 +371,9 @@ impl Generator for DrumSynth {
     }
 
     fn set_param(&mut self, name: &str, value: f32) {
-        let Some(v) = param_value(&DESCRIPTOR, name, value) else { return };
+        let Some(v) = param_value(&DESCRIPTOR, name, value) else {
+            return;
+        };
         match name {
             "type" => self.kind = Kind::from_value(v),
             "tone" => self.tone = v,
@@ -347,12 +390,21 @@ impl Generator for DrumSynth {
         let idx = pick_voice(&self.voices);
         self.order += 1;
         let track = if self.key_track { note.key as f32 - 60.0 } else { 0.0 };
-        let fine = if note.fine_pitch_cents.is_finite() { note.fine_pitch_cents } else { 0.0 };
+        let fine = if note.fine_pitch_cents.is_finite() {
+            note.fine_pitch_cents
+        } else {
+            0.0
+        };
         let st = (track + self.pitch + (fine + self.pitch_offset) / 100.0).clamp(-48.0, 48.0);
         let (gl, gr) = balance_gains(note.pan);
         let decay_mul = 2f32.powf((self.decay - 0.5) * 4.0);
         let v = &mut self.voices[idx];
-        v.tag = VoiceTag { active: true, released: false, id: note.voice_id, order: self.order };
+        v.tag = VoiceTag {
+            active: true,
+            released: false,
+            id: note.voice_id,
+            order: self.order,
+        };
         v.kind = self.kind;
         v.ratio = semitones_to_ratio(st);
         v.tone = self.tone;

@@ -112,7 +112,9 @@ impl Generator for BooBass {
     }
 
     fn set_param(&mut self, name: &str, value: f32) {
-        let Some(v) = param_value(&DESCRIPTOR, name, value) else { return };
+        let Some(v) = param_value(&DESCRIPTOR, name, value) else {
+            return;
+        };
         match name {
             "bass" => self.bass = v,
             "mid" => self.mid = v,
@@ -139,7 +141,11 @@ impl Generator for BooBass {
         self.active = true;
         self.voice_id = note.voice_id;
         self.key = note.key.min(127);
-        self.fine = if note.fine_pitch_cents.is_finite() { note.fine_pitch_cents } else { 0.0 };
+        self.fine = if note.fine_pitch_cents.is_finite() {
+            note.fine_pitch_cents
+        } else {
+            0.0
+        };
         self.vel = note.velocity.clamp(0.0, 1.0);
         (self.gl, self.gr) = balance_gains(note.pan);
         self.env.note_on();
@@ -173,14 +179,14 @@ impl Generator for BooBass {
         let gain = self.amp * (0.3 + 0.7 * self.vel);
         let brightness = 0.4 + 0.6 * self.vel;
         for i in 0..n {
-            let raw = 0.55 * self.saw.next() + 0.6 * self.sub.next();
-            let fe = self.filter_env.next();
+            let raw = 0.55 * self.saw.next_sample() + 0.6 * self.sub.next_sample();
+            let fe = self.filter_env.next_sample();
             self.svf.set_cutoff(hz * 1.5 + 3500.0 * fe * brightness + 150.0);
             let mut x = self.svf.process(raw);
             for b in &mut self.tone {
                 x = b.process(x);
             }
-            let y = x * self.env.next() * gain;
+            let y = x * self.env.next_sample() * gain;
             left[i] += y * self.gl;
             right[i] += y * self.gr;
             if self.env.is_idle() {

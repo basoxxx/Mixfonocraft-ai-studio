@@ -53,9 +53,12 @@ impl StudioApp {
                 });
             });
         });
-        egui::Panel::left("browser").resizable(true).default_size(190.0).show(ui, |ui| {
-            views::browser::show(ui, &mut self.studio);
-        });
+        egui::Panel::left("browser")
+            .resizable(true)
+            .default_size(190.0)
+            .show(ui, |ui| {
+                views::browser::show(ui, &mut self.studio);
+            });
         egui::CentralPanel::default().show(ui, |ui| match self.studio.view {
             View::ChannelRack => views::channel_rack::show(ui, &mut self.studio),
             View::PianoRoll => self.piano_roll.show(ui, &mut self.studio),
@@ -90,7 +93,12 @@ impl StudioApp {
                             self.studio.status = e;
                         }
                     }
-                    None => self.dialog = Some(FileDialog { action: FileAction::SaveAs, path: "project.mfc".into() }),
+                    None => {
+                        self.dialog = Some(FileDialog {
+                            action: FileAction::SaveAs,
+                            path: "project.mfc".into(),
+                        })
+                    }
                 }
             }
             if typing {
@@ -134,16 +142,25 @@ impl StudioApp {
                     ("Esporta MIDI…", FileAction::ExportMidi, "song.mid"),
                 ] {
                     if ui.button(label).clicked() {
-                        self.dialog = Some(FileDialog { action, path: default.into() });
+                        self.dialog = Some(FileDialog {
+                            action,
+                            path: default.into(),
+                        });
                         ui.close();
                     }
                 }
             });
             ui.menu_button("Modifica", |ui| {
-                if ui.add_enabled(self.studio.history.can_undo(), egui::Button::new("Annulla (Ctrl+Z)")).clicked() {
+                if ui
+                    .add_enabled(self.studio.history.can_undo(), egui::Button::new("Annulla (Ctrl+Z)"))
+                    .clicked()
+                {
                     self.studio.undo();
                 }
-                if ui.add_enabled(self.studio.history.can_redo(), egui::Button::new("Ripeti (Ctrl+Y)")).clicked() {
+                if ui
+                    .add_enabled(self.studio.history.can_redo(), egui::Button::new("Ripeti (Ctrl+Y)"))
+                    .clicked()
+                {
                     self.studio.redo();
                 }
             });
@@ -158,7 +175,11 @@ impl StudioApp {
                 self.studio.set_song_mode(true);
             }
             let playing = self.studio.engine.shared.is_playing();
-            if ui.button(if playing { "⏸" } else { "▶" }).on_hover_text("Play/Pausa (Spazio)").clicked() {
+            if ui
+                .button(if playing { "⏸" } else { "▶" })
+                .on_hover_text("Play/Pausa (Spazio)")
+                .clicked()
+            {
                 self.studio.toggle_play();
             }
             if ui.button("⏹").on_hover_text("Stop").clicked() {
@@ -167,7 +188,13 @@ impl StudioApp {
 
             // Tempo
             let mut bpm = self.studio.project.tempo;
-            let r = ui.add(egui::DragValue::new(&mut bpm).range(10.0..=999.0).speed(0.1).fixed_decimals(3).suffix(" BPM"));
+            let r = ui.add(
+                egui::DragValue::new(&mut bpm)
+                    .range(10.0..=999.0)
+                    .speed(0.1)
+                    .fixed_decimals(3)
+                    .suffix(" BPM"),
+            );
             if r.drag_stopped() || (r.changed() && !r.dragged()) {
                 self.studio.exec(Command::SetTempo { bpm });
             }
@@ -178,7 +205,11 @@ impl StudioApp {
             let bar = pos / tb.ticks_per_bar() + 1;
             let beat = pos % tb.ticks_per_bar() / tb.ticks_per_beat() + 1;
             let tick = pos % tb.ticks_per_beat();
-            ui.label(RichText::new(format!("{bar:>3}:{beat:02}:{tick:02}")).monospace().strong());
+            ui.label(
+                RichText::new(format!("{bar:>3}:{beat:02}:{tick:02}"))
+                    .monospace()
+                    .strong(),
+            );
 
             // Selettore pattern
             let current = self.studio.current_pattern();
@@ -186,19 +217,27 @@ impl StudioApp {
                 .and_then(|p| self.studio.project.pattern(p))
                 .map(|p| p.name.clone())
                 .unwrap_or_else(|| "—".into());
-            egui::ComboBox::from_id_salt("pattern_sel").selected_text(name).show_ui(ui, |ui| {
-                let pats: Vec<_> = self.studio.project.patterns.iter().map(|p| (p.id, p.name.clone())).collect();
-                for (id, n) in pats {
-                    if ui.selectable_label(Some(id) == current, n).clicked() {
-                        self.studio.exec(Command::SelectPattern { pattern: id });
+            egui::ComboBox::from_id_salt("pattern_sel")
+                .selected_text(name)
+                .show_ui(ui, |ui| {
+                    let pats: Vec<_> = self
+                        .studio
+                        .project
+                        .patterns
+                        .iter()
+                        .map(|p| (p.id, p.name.clone()))
+                        .collect();
+                    for (id, n) in pats {
+                        if ui.selectable_label(Some(id) == current, n).clicked() {
+                            self.studio.exec(Command::SelectPattern { pattern: id });
+                        }
                     }
-                }
-            });
+                });
             if ui.button("➕").on_hover_text("Nuovo pattern").clicked() {
                 let n = self.studio.project.patterns.len() + 1;
-                if let Some(mfc_core::Outcome::Pattern(id)) =
-                    self.studio.exec(Command::AddPattern { name: format!("Pattern {n}") })
-                {
+                if let Some(mfc_core::Outcome::Pattern(id)) = self.studio.exec(Command::AddPattern {
+                    name: format!("Pattern {n}"),
+                }) {
                     self.studio.exec(Command::SelectPattern { pattern: id });
                 }
             }
@@ -210,7 +249,11 @@ impl StudioApp {
                 (View::PianoRoll, "Piano Roll", "F7"),
                 (View::Mixer, "Mixer", "F9"),
             ] {
-                if ui.selectable_label(self.studio.view == v, label).on_hover_text(key).clicked() {
+                if ui
+                    .selectable_label(self.studio.view == v, label)
+                    .on_hover_text(key)
+                    .clicked()
+                {
                     self.studio.view = v;
                 }
             }
@@ -218,7 +261,8 @@ impl StudioApp {
             let (l, r) = self.studio.engine.shared.take_output_meter();
             views::widgets::meter(ui, l, r, egui::vec2(60.0, 14.0));
             if !self.studio.audible {
-                ui.label(RichText::new("🔇").color(Color32::GRAY)).on_hover_text("Nessun dispositivo audio");
+                ui.label(RichText::new("🔇").color(Color32::GRAY))
+                    .on_hover_text("Nessun dispositivo audio");
             }
         });
     }
@@ -234,17 +278,20 @@ impl StudioApp {
         };
         let mut confirmed = false;
         let mut cancelled = false;
-        egui::Window::new(title).collapsible(false).resizable(false).show(ctx, |ui| {
-            ui.label("Percorso:");
-            let r = ui.text_edit_singleline(&mut d.path);
-            if r.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
-                confirmed = true;
-            }
-            ui.horizontal(|ui| {
-                confirmed |= ui.button("OK").clicked();
-                cancelled |= ui.button("Annulla").clicked();
+        egui::Window::new(title)
+            .collapsible(false)
+            .resizable(false)
+            .show(ctx, |ui| {
+                ui.label("Percorso:");
+                let r = ui.text_edit_singleline(&mut d.path);
+                if r.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
+                    confirmed = true;
+                }
+                ui.horizontal(|ui| {
+                    confirmed |= ui.button("OK").clicked();
+                    cancelled |= ui.button("Annulla").clicked();
+                });
             });
-        });
         if cancelled {
             self.dialog = None;
         } else if confirmed {

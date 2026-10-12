@@ -136,7 +136,9 @@ impl Generator for Kick {
     }
 
     fn set_param(&mut self, name: &str, value: f32) {
-        let Some(v) = param_value(&DESCRIPTOR, name, value) else { return };
+        let Some(v) = param_value(&DESCRIPTOR, name, value) else {
+            return;
+        };
         match name {
             "start_freq" => self.start_freq = v,
             "end_freq" => self.end_freq = v,
@@ -158,10 +160,19 @@ impl Generator for Kick {
         let idx = pick_voice(&self.voices);
         self.order += 1;
         let track = if self.key_track { note.key as f32 - 60.0 } else { 0.0 };
-        let fine = if note.fine_pitch_cents.is_finite() { note.fine_pitch_cents } else { 0.0 };
+        let fine = if note.fine_pitch_cents.is_finite() {
+            note.fine_pitch_cents
+        } else {
+            0.0
+        };
         let (gl, gr) = balance_gains(note.pan);
         let v = &mut self.voices[idx];
-        v.tag = VoiceTag { active: true, released: false, id: note.voice_id, order: self.order };
+        v.tag = VoiceTag {
+            active: true,
+            released: false,
+            id: note.voice_id,
+            order: self.order,
+        };
         v.phase = 0.0;
         v.ratio = semitones_to_ratio((track + fine / 100.0).clamp(-48.0, 48.0));
         v.vel = note.velocity.clamp(0.0, 1.0);
@@ -207,8 +218,8 @@ impl Generator for Kick {
                 v.phase += f * inv_sr;
                 v.phase -= v.phase.floor();
                 let body = (TAU * v.phase).sin();
-                let click = v.click_hp.highpass(v.rng.next_bipolar()) * v.click.next() * self.click;
-                let mut x = (body + click * 0.8) * v.amp.next();
+                let click = v.click_hp.highpass(v.rng.next_bipolar()) * v.click.next_sample() * self.click;
+                let mut x = (body + click * 0.8) * v.amp.next_sample();
                 if self.distortion > 0.0 {
                     x = soft_clip(x * drive) * makeup;
                 }

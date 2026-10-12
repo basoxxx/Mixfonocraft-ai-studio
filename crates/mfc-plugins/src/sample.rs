@@ -26,7 +26,10 @@ fn read_wav<R: std::io::Read>(mut reader: hound::WavReader<R>) -> Result<SampleD
     let spec = reader.spec();
     let in_ch = spec.channels as usize;
     if in_ch == 0 || spec.sample_rate == 0 {
-        return Err(SampleError::Unsupported(format!("{} canali a {} Hz", spec.channels, spec.sample_rate)));
+        return Err(SampleError::Unsupported(format!(
+            "{} canali a {} Hz",
+            spec.channels, spec.sample_rate
+        )));
     }
     let out_ch = in_ch.min(2);
     let frames = reader.duration() as usize;
@@ -59,7 +62,10 @@ fn read_wav<R: std::io::Read>(mut reader: hound::WavReader<R>) -> Result<SampleD
     if len == 0 {
         return Err(SampleError::Empty);
     }
-    Ok(SampleData { sample_rate: spec.sample_rate as f32, channels })
+    Ok(SampleData {
+        sample_rate: spec.sample_rate as f32,
+        channels,
+    })
 }
 
 #[cfg(test)]
@@ -67,7 +73,9 @@ mod tests {
     use super::*;
 
     fn temp_path(tag: &str) -> std::path::PathBuf {
-        let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_nanos());
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_nanos());
         std::env::temp_dir().join(format!("mfc_sample_{tag}_{}_{nanos}.wav", std::process::id()))
     }
 
@@ -76,7 +84,11 @@ mod tests {
             channels,
             sample_rate: 44_100,
             bits_per_sample: bits,
-            sample_format: if float { hound::SampleFormat::Float } else { hound::SampleFormat::Int },
+            sample_format: if float {
+                hound::SampleFormat::Float
+            } else {
+                hound::SampleFormat::Int
+            },
         };
         let mut w = hound::WavWriter::create(path, spec).unwrap();
         for &v in frames {
@@ -110,7 +122,11 @@ mod tests {
                 assert_eq!(s.len(), data.len() / ch as usize);
                 assert_eq!(s.sample_rate, 44_100.0);
                 let tol = if bits == 8 { 0.02 } else { 1e-3 };
-                assert!((s.channels[0][0] - 0.5).abs() < tol, "{bits} {float} {ch}: {}", s.channels[0][0]);
+                assert!(
+                    (s.channels[0][0] - 0.5).abs() < tol,
+                    "{bits} {float} {ch}: {}",
+                    s.channels[0][0]
+                );
                 if ch == 2 {
                     assert!((s.channels[1][0] + 0.5).abs() < tol);
                 }

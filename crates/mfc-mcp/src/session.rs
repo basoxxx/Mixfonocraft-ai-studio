@@ -35,7 +35,13 @@ impl Default for Session {
 
 impl Session {
     pub fn new(workdir: PathBuf) -> Self {
-        Self { project: Project::new("Untitled"), history: History::default(), path: None, workdir, transport: None }
+        Self {
+            project: Project::new("Untitled"),
+            history: History::default(),
+            path: None,
+            workdir,
+            transport: None,
+        }
     }
 
     /// Risolve un percorso relativo rispetto alla cartella di lavoro.
@@ -50,7 +56,10 @@ impl Session {
 
     /// Esegue un comando con undo e sincronizza il motore live.
     pub fn exec(&mut self, cmd: Command) -> Result<Outcome, String> {
-        let out = self.history.execute(&mut self.project, &cmd).map_err(|e| e.to_string())?;
+        let out = self
+            .history
+            .execute(&mut self.project, &cmd)
+            .map_err(|e| e.to_string())?;
         self.sync();
         Ok(out)
     }
@@ -101,15 +110,29 @@ fn start_transport(project: &Project) -> Result<Transport, String> {
     if let Ok(sr) = default_sample_rate() {
         let (engine, handle) = Engine::new(project, sr as f32);
         if let Ok(dev) = DeviceBackend::start(engine) {
-            return Ok(Transport { handle, _null: None, _device: Some(dev), audible: true });
+            return Ok(Transport {
+                handle,
+                _null: None,
+                _device: Some(dev),
+                audible: true,
+            });
         }
     }
     let (engine, handle) = Engine::new(project, 48_000.0);
-    Ok(Transport { handle, _null: Some(NullBackend::start(engine, 512)), _device: None, audible: false })
+    Ok(Transport {
+        handle,
+        _null: Some(NullBackend::start(engine, 512)),
+        _device: None,
+        audible: false,
+    })
 }
 
 #[cfg(not(feature = "realtime"))]
 fn start_transport(project: &Project) -> Result<Transport, String> {
     let (engine, handle) = Engine::new(project, 48_000.0);
-    Ok(Transport { handle, _null: Some(NullBackend::start(engine, 512)), audible: false })
+    Ok(Transport {
+        handle,
+        _null: Some(NullBackend::start(engine, 512)),
+        audible: false,
+    })
 }

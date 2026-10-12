@@ -160,7 +160,9 @@ impl Generator for Supersaw {
     }
 
     fn set_param(&mut self, name: &str, value: f32) {
-        let Some(v) = param_value(&DESCRIPTOR, name, value) else { return };
+        let Some(v) = param_value(&DESCRIPTOR, name, value) else {
+            return;
+        };
         match name {
             "detune" => {
                 self.detune = v;
@@ -188,9 +190,18 @@ impl Generator for Supersaw {
         self.order += 1;
         let (gl, gr) = balance_gains(note.pan);
         let v = &mut self.voices[idx];
-        v.tag = VoiceTag { active: true, released: false, id: note.voice_id, order: self.order };
+        v.tag = VoiceTag {
+            active: true,
+            released: false,
+            id: note.voice_id,
+            order: self.order,
+        };
         v.key = note.key.min(127);
-        v.fine = if note.fine_pitch_cents.is_finite() { note.fine_pitch_cents } else { 0.0 };
+        v.fine = if note.fine_pitch_cents.is_finite() {
+            note.fine_pitch_cents
+        } else {
+            0.0
+        };
         v.vel = note.velocity.clamp(0.0, 1.0);
         v.gl = gl;
         v.gr = gr;
@@ -242,7 +253,7 @@ impl Generator for Supersaw {
             for i in 0..n {
                 let (mut l, mut r) = (0.0, 0.0);
                 for (o, (gl, gr)) in v.saws.iter_mut().zip(gains) {
-                    let x = o.next();
+                    let x = o.next_sample();
                     l += x * gl;
                     r += x * gr;
                 }
@@ -250,7 +261,7 @@ impl Generator for Supersaw {
                     l = v.svf[0].process(l);
                     r = v.svf[1].process(r);
                 }
-                let e = v.env.next() * gain;
+                let e = v.env.next_sample() * gain;
                 left[i] += l * e * v.gl;
                 right[i] += r * e * v.gr;
                 if v.env.is_idle() {

@@ -63,7 +63,10 @@ pub fn key_name(key: u8) -> String {
 /// Interpreta una nota: numero MIDI o nome (`C5`, `F#4`, `Bb3`; C5 = 60 come in FL Studio).
 pub fn parse_key(v: &Value) -> Result<u8, String> {
     if let Some(n) = v.as_u64() {
-        return u8::try_from(n).ok().filter(|k| *k <= 127).ok_or_else(|| format!("nota {n} fuori range 0..=127"));
+        return u8::try_from(n)
+            .ok()
+            .filter(|k| *k <= 127)
+            .ok_or_else(|| format!("nota {n} fuori range 0..=127"));
     }
     let s = v.as_str().ok_or("nota: numero o nome (es. \"C5\")")?.trim();
     let mut chars = s.chars();
@@ -86,7 +89,10 @@ pub fn parse_key(v: &Value) -> Result<u8, String> {
     };
     let octave: i32 = oct.parse().map_err(|_| format!("ottava non valida in {s}"))?;
     let key = octave * 12 + base + acc;
-    u8::try_from(key).ok().filter(|k| *k <= 127).ok_or_else(|| format!("nota {s} fuori range"))
+    u8::try_from(key)
+        .ok()
+        .filter(|k| *k <= 127)
+        .ok_or_else(|| format!("nota {s} fuori range"))
 }
 
 fn outcome_json(o: &Outcome) -> Value {
@@ -96,16 +102,26 @@ fn outcome_json(o: &Outcome) -> Value {
 fn current_pattern(s: &Session, p: Option<u32>) -> Result<PatternId, String> {
     match p {
         Some(id) => Ok(PatternId(id)),
-        None => s.project.current_pattern.or(s.project.patterns.first().map(|p| p.id)).ok_or("nessun pattern".into()),
+        None => s
+            .project
+            .current_pattern
+            .or(s.project.patterns.first().map(|p| p.id))
+            .ok_or("nessun pattern".into()),
     }
 }
 
-fn plugin_instance(kind: &str, params: Option<BTreeMap<String, f32>>, sample: Option<String>) -> Result<PluginInstance, String> {
-    let mut inst = mfc_plugins::default_instance(kind)
-        .ok_or_else(|| format!("plugin sconosciuto: {kind} (vedi plugin_list)"))?;
+fn plugin_instance(
+    kind: &str,
+    params: Option<BTreeMap<String, f32>>,
+    sample: Option<String>,
+) -> Result<PluginInstance, String> {
+    let mut inst =
+        mfc_plugins::default_instance(kind).ok_or_else(|| format!("plugin sconosciuto: {kind} (vedi plugin_list)"))?;
     let desc = mfc_plugins::descriptor(kind).unwrap();
     for (k, v) in params.unwrap_or_default() {
-        let p = desc.param(&k).ok_or_else(|| format!("{kind}: parametro sconosciuto '{k}'"))?;
+        let p = desc
+            .param(&k)
+            .ok_or_else(|| format!("{kind}: parametro sconosciuto '{k}'"))?;
         inst.params.insert(k, p.clamp(v));
     }
     inst.sample_path = sample;
@@ -113,7 +129,12 @@ fn plugin_instance(kind: &str, params: Option<BTreeMap<String, f32>>, sample: Op
 }
 
 fn channel_json(p: &Project, c: &Channel) -> Value {
-    let notes: usize = p.patterns.iter().filter_map(|pt| pt.notes.get(&c.id)).map(Vec::len).sum();
+    let notes: usize = p
+        .patterns
+        .iter()
+        .filter_map(|pt| pt.notes.get(&c.id))
+        .map(Vec::len)
+        .sum();
     json!({
         "id": c.id, "name": c.name, "kind": c.kind, "plugin": c.plugin.kind,
         "foreign_plugin": c.plugin.foreign_name, "sample": c.plugin.sample_path,

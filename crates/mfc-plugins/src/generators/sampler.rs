@@ -165,6 +165,8 @@ impl Sampler {
             resonance: 0.0,
         };
         apply_defaults(desc, |n, v| s.set_param(n, v));
+        s.configure_envelopes();
+        s.configure_filters();
         s
     }
 
@@ -213,7 +215,9 @@ impl Sampler {
     }
 
     fn update_steps(&mut self) {
-        let Some(sample_sr) = self.sample.as_ref().map(|s| s.sample_rate) else { return };
+        let Some(sample_sr) = self.sample.as_ref().map(|s| s.sample_rate) else {
+            return;
+        };
         for i in 0..self.voices.len() {
             let v = self.voices[i];
             if v.tag.active {
@@ -245,7 +249,9 @@ impl Generator for Sampler {
     }
 
     fn set_param(&mut self, name: &str, value: f32) {
-        let Some(v) = param_value(self.desc, name, value) else { return };
+        let Some(v) = param_value(self.desc, name, value) else {
+            return;
+        };
         match name {
             "amp" => self.amp = v,
             "pitch_semitones" => {
@@ -288,7 +294,11 @@ impl Generator for Sampler {
             (self.start as f64 * len).floor()
         };
         let skip = skip.min(len);
-        let (lo, hi, pos, dir) = if self.reverse { (0.0, len - skip, len - skip - 1.0, -1.0) } else { (skip, len, skip, 1.0) };
+        let (lo, hi, pos, dir) = if self.reverse {
+            (0.0, len - skip, len - skip - 1.0, -1.0)
+        } else {
+            (skip, len, skip, 1.0)
+        };
         if hi - lo < 1.0 {
             return;
         }
@@ -297,10 +307,19 @@ impl Generator for Sampler {
         let vel = note.velocity.clamp(0.0, 1.0);
         let (gl, gr) = balance_gains(note.pan);
         let v = &mut self.voices[idx];
-        v.tag = VoiceTag { active: true, released: false, id: note.voice_id, order: self.order };
+        v.tag = VoiceTag {
+            active: true,
+            released: false,
+            id: note.voice_id,
+            order: self.order,
+        };
         v.key = note.key;
         v.root = note.root_key;
-        v.fine_cents = if note.fine_pitch_cents.is_finite() { note.fine_pitch_cents } else { 0.0 };
+        v.fine_cents = if note.fine_pitch_cents.is_finite() {
+            note.fine_pitch_cents
+        } else {
+            0.0
+        };
         v.vel = vel;
         v.gl = gl;
         v.gr = gr;
@@ -313,7 +332,11 @@ impl Generator for Sampler {
         v.env.reset();
         v.env.note_on();
         // Le clip avviate a metà usano un breve fade-in.
-        let fade_in = if self.clip && note.start_offset_samples > 0 { DECLICK } else { 0.0 };
+        let fade_in = if self.clip && note.start_offset_samples > 0 {
+            DECLICK
+        } else {
+            0.0
+        };
         v.gate.reset();
         v.gate.set_attack(fade_in);
         v.gate.note_on();
@@ -366,8 +389,12 @@ impl Generator for Sampler {
                     let span = v.hi - v.lo;
                     v.pos = v.lo + (v.pos - v.lo).rem_euclid(span);
                 }
-                let g_env = v.gate.next();
-                let g = if env_on { (1.0 - amt) * g_env + amt * v.env.next() } else { g_env };
+                let g_env = v.gate.next_sample();
+                let g = if env_on {
+                    (1.0 - amt) * g_env + amt * v.env.next_sample()
+                } else {
+                    g_env
+                };
                 let mut l = sample_hermite(ch_l, v.pos);
                 let mut r = sample_hermite(ch_r, v.pos);
                 if filter_on {
@@ -378,7 +405,11 @@ impl Generator for Sampler {
                 left[i] += l * g * v.gl;
                 right[i] += r * g * v.gr;
                 v.pos += v.step;
-                let done = if env_on { v.gate.is_idle() && v.env.is_idle() } else { v.gate.is_idle() };
+                let done = if env_on {
+                    v.gate.is_idle() && v.env.is_idle()
+                } else {
+                    v.gate.is_idle()
+                };
                 if done {
                     v.tag.active = false;
                     break;

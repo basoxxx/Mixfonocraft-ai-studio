@@ -30,14 +30,24 @@ pub fn meter(ui: &mut Ui, left: f32, right: f32, size: Vec2) -> Response {
         let f = meter_fraction(v);
         let r = if horizontal {
             let h = rect.height() / 2.0;
-            Rect::from_min_size(pos2(rect.left(), rect.top() + i as f32 * h), vec2(rect.width() * f, h - 1.0))
+            Rect::from_min_size(
+                pos2(rect.left(), rect.top() + i as f32 * h),
+                vec2(rect.width() * f, h - 1.0),
+            )
         } else {
             let w = rect.width() / 2.0;
-            Rect::from_min_max(pos2(rect.left() + i as f32 * w, rect.bottom() - rect.height() * f), pos2(rect.left() + (i as f32 + 1.0) * w - 1.0, rect.bottom()))
+            Rect::from_min_max(
+                pos2(rect.left() + i as f32 * w, rect.bottom() - rect.height() * f),
+                pos2(rect.left() + (i as f32 + 1.0) * w - 1.0, rect.bottom()),
+            )
         };
         p.rect_filled(r, 0.0, meter_color(f));
     }
-    resp.on_hover_text(format!("L {:.1} dB  R {:.1} dB", 20.0 * left.max(1e-6).log10(), 20.0 * right.max(1e-6).log10()))
+    resp.on_hover_text(format!(
+        "L {:.1} dB  R {:.1} dB",
+        20.0 * left.max(1e-6).log10(),
+        20.0 * right.max(1e-6).log10()
+    ))
 }
 
 /// Knob rotativo: trascina verticalmente, doppio click = `default`. Restituisce la risposta

@@ -62,7 +62,11 @@ impl Studio {
             selected_channel,
             selected_insert: 1,
             plugin_editor: None,
-            status: if audible { "Audio attivo".into() } else { "Audio non disponibile: transport silenzioso".into() },
+            status: if audible {
+                "Audio attivo".into()
+            } else {
+                "Audio non disponibile: transport silenzioso".into()
+            },
             engine: handle,
             audible,
             _backend: backend,
@@ -73,7 +77,9 @@ impl Studio {
 
     /// Pattern selezionato (o il primo).
     pub fn current_pattern(&self) -> Option<PatternId> {
-        self.project.current_pattern.or_else(|| self.project.patterns.first().map(|p| p.id))
+        self.project
+            .current_pattern
+            .or_else(|| self.project.patterns.first().map(|p| p.id))
     }
 
     /// Esegue un comando con undo; aggiorna motore e stato.
@@ -158,7 +164,11 @@ impl Studio {
 
     /// Apre .mfc, .flp o .mid.
     pub fn open(&mut self, path: &Path) -> Result<(), String> {
-        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
+        let ext = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("")
+            .to_ascii_lowercase();
         let project = match ext.as_str() {
             "flp" => {
                 let (_, imp) = mfc_flp::read_file(path).map_err(|e| e.to_string())?;
@@ -190,7 +200,11 @@ impl Studio {
 
     /// Salva in .mfc (o .flp se l'estensione lo indica).
     pub fn save_as(&mut self, path: &Path) -> Result<(), String> {
-        if path.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("flp")) {
+        if path
+            .extension()
+            .and_then(|e| e.to_str())
+            .is_some_and(|e| e.eq_ignore_ascii_case("flp"))
+        {
             mfc_flp::write_file(path, &self.project).map_err(|e| e.to_string())?;
             self.status = format!("Esportato FLP {}", path.display());
             return Ok(());
