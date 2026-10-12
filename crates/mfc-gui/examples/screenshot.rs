@@ -29,16 +29,8 @@ fn main() {
     for (name, view) in views {
         app.studio.view = view;
         if view == View::PianoRoll {
-            // Seleziona il canale con più note per il piano roll.
-            let best = app.studio.project.channels.iter().max_by_key(|c| {
-                app.studio
-                    .project
-                    .patterns
-                    .iter()
-                    .filter_map(|p| p.notes.get(&c.id))
-                    .map(Vec::len)
-                    .sum::<usize>()
-            });
+            // Canale melodico per il piano roll (Lead nel demo), altrimenti il primo.
+            let best = app.studio.project.channels.iter().find(|c| c.name == "Lead");
             app.studio.selected_channel = best.map(|c| c.id);
             if let Some(p) = app.studio.project.patterns.last() {
                 app.studio.project.current_pattern = Some(p.id);

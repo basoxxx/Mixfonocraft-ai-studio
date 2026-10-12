@@ -26,7 +26,7 @@
     <MajorUpgrade DowngradeErrorMessage="È già installata una versione più recente di Mixfonocraft AI Studio." />
     <MediaTemplate EmbedCab="yes" />
 
-    <Icon Id="AppIcon.ico" SourceFile="..\..\assets\icon\icon.ico" />
+    <Icon Id="AppIcon.ico" SourceFile="$(sys.SOURCEFILEDIR)..\..\assets\icon\icon.ico" />
     <Property Id="ARPPRODUCTICON" Value="AppIcon.ico" />
     <Property Id="ARPHELPLINK" Value="https://github.com/basoxxx/Mixfonocraft-ai-studio" />
     <Property Id="ARPURLINFOABOUT" Value="https://github.com/basoxxx/Mixfonocraft-ai-studio" />
