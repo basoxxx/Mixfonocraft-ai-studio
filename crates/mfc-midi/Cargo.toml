@@ -3,5 +3,9 @@ name = "mfc-midi"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+description = "Import/export MIDI (SMF) per Mixfonocraft AI Studio"
 
 [dependencies]
+mfc-core.workspace = true
+midly.workspace = true
+thiserror.workspace = true

@@ -40,7 +40,7 @@ crossbeam-channel = "0.5"
 parking_lot = "0.12"
 tokio = { version = "1", features = ["full"] }
 schemars = "1"
-eframe = "0.36"
+eframe = { version = "0.36", default-features = false }
 egui = "0.36"
 cpal = "0.18"
 

@@ -3,9 +3,27 @@ name = "mfc-cli"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+description = "CLI di Mixfonocraft AI Studio: conversione, info, render, demo, server MCP e GUI"
 
 [[bin]]
 name = "mixfonocraft"
 path = "src/main.rs"
 
+[features]
+default = ["gui"]
+# Apre la finestra grafica (`mixfonocraft gui`).
+gui = ["dep:mfc-gui"]
+# Uscita audio realtime (ALSA su Linux) per il transport dei tool MCP e della GUI.
+realtime = ["mfc-mcp/realtime", "mfc-gui?/realtime"]
+
 [dependencies]
+mfc-core.workspace = true
+mfc-engine.workspace = true
+mfc-flp.workspace = true
+mfc-midi.workspace = true
+mfc-mcp.workspace = true
+mfc-plugins.workspace = true
+mfc-gui = { workspace = true, optional = true }
+clap.workspace = true
+anyhow.workspace = true
+serde_json.workspace = true

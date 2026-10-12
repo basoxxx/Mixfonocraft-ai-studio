@@ -3,5 +3,9 @@ name = "mfc-flp"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+description = "Lettura/scrittura di progetti FL Studio (.flp) basata su documentazione pubblica della community"
 
 [dependencies]
+mfc-core.workspace = true
+thiserror.workspace = true
+serde.workspace = true

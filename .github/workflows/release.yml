@@ -1,0 +1,139 @@
+name: Release
+
+# Build per macOS (Intel e Apple Silicon) e Windows.
+# - Pull request e push sul branch: gli eseguibili vengono caricati come artifact della run.
+# - Tag `v*` (es. v0.1.0): viene creata la GitHub Release con i pacchetti allegati.
+# - Avvio manuale con input `tag`: crea tag e Release sul commit selezionato
+#   (utile quando il push dei tag non è disponibile).
+
+on:
+  pull_request:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag della release da creare (es. v0.1.0); vuoto = solo build"
+        required: false
+        default: ""
+
+env:
+  CARGO_TERM_COLOR: always
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS Apple Silicon
+            os: macos-latest
+            target: aarch64-apple-darwin
+            slug: macos-arm64
+            native: true
+          - name: macOS Intel
+            os: macos-latest
+            target: x86_64-apple-darwin
+            slug: macos-x86_64
+            native: false
+          - name: Windows x64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            slug: windows-x86_64
+            native: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.97.0
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Build
+        run: cargo build --release --locked -p mfc-cli --features realtime --target ${{ matrix.target }}
+        env:
+          MACOSX_DEPLOYMENT_TARGET: "11.0"
+
+      - name: Versione
+        id: ver
+        shell: bash
+        run: echo "version=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke test (demo + render)
+        if: matrix.native
+        shell: bash
+        run: |
+          BIN=target/${{ matrix.target }}/release/mixfonocraft
+          "$BIN" --version
+          "$BIN" demo smoke.mfc --render smoke.wav
+          "$BIN" info smoke.mfc
+          "$BIN" convert smoke.mfc smoke.flp
+          test -s smoke.wav && test -s smoke.flp
+
+      - name: Pacchetto macOS (.app, .dmg, .zip)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          VER=${{ steps.ver.outputs.version }}
+          NAME=Mixfonocraft-$VER-${{ matrix.slug }}
+          STAGE=dist/$NAME
+          APP=$STAGE/Mixfonocraft.app
+          mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+          cp target/${{ matrix.target }}/release/mixfonocraft "$APP/Contents/MacOS/"
+          sed "s/__VERSION__/$VER/g" packaging/macos/Info.plist > "$APP/Contents/Info.plist"
+          # Firma ad-hoc (nessun certificato Apple): necessaria su Apple Silicon.
+          codesign --force --deep --sign - "$APP"
+          cp target/${{ matrix.target }}/release/mixfonocraft "$STAGE/mixfonocraft"
+          cp README.md "$STAGE/"
+          cp -R examples "$STAGE/"
+          lipo -info "$APP/Contents/MacOS/mixfonocraft"
+          hdiutil create -volname "Mixfonocraft" -srcfolder "$STAGE" -ov -format UDZO "dist/$NAME.dmg"
+          (cd dist && ditto -c -k --keepParent "$NAME" "$NAME.zip")
+          ls -lh dist
+
+      - name: Pacchetto Windows (.zip)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ver = "${{ steps.ver.outputs.version }}"
+          $name = "Mixfonocraft-$ver-${{ matrix.slug }}"
+          $stage = "dist/$name"
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Copy-Item "target/${{ matrix.target }}/release/mixfonocraft.exe" $stage
+          Copy-Item README.md $stage
+          Copy-Item -Recurse examples $stage
+          Compress-Archive -Path $stage -DestinationPath "dist/$name.zip" -Force
+          Get-ChildItem dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Mixfonocraft-${{ matrix.slug }}
+          path: |
+            dist/*.zip
+            dist/*.dmg
+          if-no-files-found: error
+
+  release:
+    name: GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.tag != '')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          target_commitish: ${{ github.sha }}
+          name: Mixfonocraft AI Studio ${{ inputs.tag || github.ref_name }}
+          files: dist/*
+          generate_release_notes: true

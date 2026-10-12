@@ -3,5 +3,21 @@ name = "mfc-mcp"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+description = "Server MCP (stdio) di Mixfonocraft: controllo completo della DAW da agenti AI"
+
+[features]
+default = []
+realtime = ["mfc-engine/realtime"]
 
 [dependencies]
+mfc-core.workspace = true
+mfc-plugins.workspace = true
+mfc-engine.workspace = true
+mfc-flp.workspace = true
+mfc-midi.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+schemars.workspace = true
+
+[dev-dependencies]
+hound.workspace = true

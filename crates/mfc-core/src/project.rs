@@ -48,6 +48,16 @@ pub const FX_SLOTS: usize = 10;
 /// Tracce della Playlist.
 pub const PLAYLIST_TRACKS: usize = 500;
 
+/// Posizione del fader di canale che corrisponde a 0 dB (come il default di FL Studio).
+pub const CHANNEL_UNITY: f32 = 0.78;
+/// Posizione del fader del mixer che corrisponde a 0 dB.
+pub const MIXER_UNITY: f32 = 0.8;
+
+/// Guadagno lineare di un fader: `pos / unity` (fader lineare in ampiezza).
+pub fn fader_gain(pos: f32, unity: f32) -> f32 {
+    (pos / unity).max(0.0)
+}
+
 /// Colore RGB.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Color(pub u8, pub u8, pub u8);
@@ -129,7 +139,7 @@ pub struct Channel {
     #[serde(default)]
     pub kind: ChannelKind,
     pub plugin: PluginInstance,
-    /// Volume lineare 0..=1.25 (FL: 100% = 0.78125 → qui 1.0 = 0 dB).
+    /// Posizione fader 0..=1.25; [`CHANNEL_UNITY`] (default) = 0 dB. Vedi [`Channel::gain`].
     pub volume: f32,
     /// Pan -1 (sinistra) ..= 1 (destra).
     pub pan: f32,
@@ -154,6 +164,11 @@ fn default_root() -> u8 {
 }
 
 impl Channel {
+    /// Guadagno lineare del fader del canale.
+    pub fn gain(&self) -> f32 {
+        fader_gain(self.volume, CHANNEL_UNITY)
+    }
+
     pub fn new(id: ChannelId, name: impl Into<String>, kind: ChannelKind, plugin: PluginInstance) -> Self {
         Self {
             id,
@@ -161,7 +176,7 @@ impl Channel {
             color: Color::default(),
             kind,
             plugin,
-            volume: 0.78,
+            volume: CHANNEL_UNITY,
             pan: 0.0,
             pitch_cents: 0.0,
             muted: false,
@@ -374,7 +389,7 @@ pub struct MixerInsert {
     pub name: String,
     #[serde(default)]
     pub color: Color,
-    /// Volume lineare (1.0 = 0 dB).
+    /// Posizione fader 0..=1.25; [`MIXER_UNITY`] (default) = 0 dB. Vedi [`MixerInsert::gain`].
     pub volume: f32,
     pub pan: f32,
     /// Separazione stereo -1 (mono) ..= 1 (allargato).
@@ -396,6 +411,11 @@ pub struct MixerInsert {
 }
 
 impl MixerInsert {
+    /// Guadagno lineare del fader dell'insert.
+    pub fn gain(&self) -> f32 {
+        fader_gain(self.volume, MIXER_UNITY)
+    }
+
     pub fn new(index: u16) -> Self {
         let name = if index == MASTER {
             "Master".to_string()
@@ -413,7 +433,7 @@ impl MixerInsert {
         Self {
             name,
             color: Color::default(),
-            volume: 0.8,
+            volume: MIXER_UNITY,
             pan: 0.0,
             stereo_separation: 0.0,
             muted: false,
@@ -545,7 +565,7 @@ pub struct Project {
     /// Tempo in BPM.
     pub tempo: f64,
     pub time: TimeBase,
-    /// Volume master lineare.
+    /// Fader master 0..=1.25 ([`MIXER_UNITY`] = 0 dB).
     pub master_volume: f32,
     /// Pitch master in cent.
     #[serde(default)]
@@ -585,7 +605,7 @@ impl Project {
             },
             tempo: 140.0,
             time: TimeBase::default(),
-            master_volume: 0.8,
+            master_volume: MIXER_UNITY,
             master_pitch: 0.0,
             swing: 0.0,
             channels: Vec::new(),
