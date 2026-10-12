@@ -1,0 +1,24 @@
+[package]
+name = "mfc-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Applicazione desktop Mixfonocraft AI Studio (GUI, senza console su Windows)"
+
+[[bin]]
+name = "mixfonocraft-studio"
+path = "src/main.rs"
+
+[features]
+default = ["realtime"]
+# Uscita audio sulla scheda (CoreAudio / WASAPI / ALSA).
+realtime = ["mfc-gui/realtime"]
+
+[dependencies]
+mfc-core.workspace = true
+mfc-gui.workspace = true
+mfc-flp.workspace = true
+mfc-midi.workspace = true
+
+[target.'cfg(windows)'.build-dependencies]
+winresource = "0.1"

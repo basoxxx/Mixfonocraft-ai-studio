@@ -10,6 +10,7 @@ members = [
     "crates/mfc-mcp",
     "crates/mfc-gui",
     "crates/mfc-cli",
+    "crates/mfc-app",
 ]
 
 [workspace.package]
