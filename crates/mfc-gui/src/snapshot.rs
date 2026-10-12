@@ -30,6 +30,7 @@ impl Screenshot {
 #[derive(Default)]
 pub struct SoftwareRenderer {
     textures: HashMap<TextureId, ColorImage>,
+    clock: f64,
 }
 
 impl SoftwareRenderer {
@@ -43,12 +44,14 @@ impl SoftwareRenderer {
         mut ui_fn: impl FnMut(&mut egui::Ui),
     ) -> Screenshot {
         let mut last = None;
-        for _ in 0..frames.max(1) {
+        for i in 0..frames.max(1) {
             let input = RawInput {
                 screen_rect: Some(egui::Rect::from_min_size(
                     egui::Pos2::ZERO,
                     egui::vec2(size[0] as f32, size[1] as f32) / pixels_per_point,
                 )),
+                // Il tempo avanza tra i frame così le animazioni (apertura finestre) si completano.
+                time: Some(self.clock + i as f64 * 0.25),
                 ..Default::default()
             };
             ctx.set_pixels_per_point(pixels_per_point);
@@ -56,6 +59,7 @@ impl SoftwareRenderer {
             self.apply_textures(&out);
             last = Some(out);
         }
+        self.clock += frames.max(1) as f64 * 0.25 + 1.0;
         let out: FullOutput = last.expect("almeno un frame");
         let prims = ctx.tessellate(out.shapes, out.pixels_per_point);
         let shot = self.rasterize(&prims, size, out.pixels_per_point);

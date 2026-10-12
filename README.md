@@ -11,6 +11,17 @@ software Image-Line. Il formato `.flp` è stato mappato solo da documentazione p
 community (PyFLP, Monad.FLParser e note sul formato), senza decompilazione. Mixfonocraft non è
 affiliato né approvato da Image-Line; FL Studio è un marchio dei rispettivi titolari.
 
+![Channel Rack](docs/screenshots/1_channel_rack.png)
+
+| Piano Roll | Playlist |
+|---|---|
+| ![Piano Roll](docs/screenshots/2_piano_roll.png) | ![Playlist](docs/screenshots/3_playlist.png) |
+| **Mixer** | **Editor plugin** |
+| ![Mixer](docs/screenshots/4_mixer.png) | ![Editor plugin](docs/screenshots/5_plugin_editor.png) |
+
+> Gli screenshot sono generati senza GPU dal rasterizzatore software incluso:
+> `cargo run -p mfc-gui --release --features snapshot --example screenshot -- examples/demo.mfc docs/screenshots`
+
 ## Funzionalità
 
 - **Channel Rack** con generatori nativi, canali sampler e audio clip, layer, pitch, pan e
