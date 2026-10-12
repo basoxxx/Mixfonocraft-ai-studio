@@ -26,3 +26,17 @@ jobs:
         run: cargo clippy -p mfc-engine -p mfc-mcp -p mfc-gui --features mfc-engine/realtime --all-targets -- -D warnings
       - name: Test
         run: cargo test --workspace
+
+  test-cross:
+    name: Test ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Test
+        run: cargo test --workspace

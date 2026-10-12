@@ -28,8 +28,9 @@ use mfc_core::{PatternId, Project};
                   mixfonocraft mcp --workdir ~/progetti"
 )]
 struct Cli {
+    /// Senza sottocomando si apre la GUI (doppio click sull'eseguibile).
     #[command(subcommand)]
-    command: Cmd,
+    command: Option<Cmd>,
 }
 
 #[derive(Subcommand)]
@@ -132,7 +133,17 @@ enum Cmd {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    match cli.command {
+    let Some(command) = cli.command else {
+        #[cfg(feature = "gui")]
+        return mfc_gui::run(Project::new("Untitled"), None).map_err(|e| anyhow!("finestra grafica: {e}"));
+        #[cfg(not(feature = "gui"))]
+        {
+            use clap::CommandFactory;
+            Cli::command().print_help()?;
+            return Ok(());
+        }
+    };
+    match command {
         Cmd::New { out, title, tempo } => {
             let project = new_project(&title, tempo)?;
             save_project(&project, &out)?;

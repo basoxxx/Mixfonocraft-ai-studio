@@ -43,6 +43,32 @@ affiliato né approvato da Image-Line; FL Studio è un marchio dei rispettivi ti
 
 Per il dettaglio di dipendenze, modello dati e motore vedere [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
+## Download (macOS e Windows)
+
+I pacchetti pronti vengono generati dal workflow [`release.yml`](.github/workflows/release.yml)
+e allegati alle [GitHub Release](../../releases) a ogni tag `v*` (per le pull request sono
+disponibili come artifact della run):
+
+| Piattaforma | File |
+|---|---|
+| macOS Apple Silicon (M1/M2/M3/M4) | `Mixfonocraft-<ver>-macos-arm64.dmg` / `.zip` |
+| macOS Intel | `Mixfonocraft-<ver>-macos-x86_64.dmg` / `.zip` |
+| Windows 10/11 x64 | `Mixfonocraft-<ver>-windows-x86_64.zip` |
+
+Ogni pacchetto contiene l'app (doppio click = GUI), l'eseguibile `mixfonocraft` per CLI e
+server MCP, il README e gli esempi. L'audio realtime è attivo (CoreAudio / WASAPI).
+
+**macOS:** l'app è firmata solo ad-hoc (nessun certificato Apple Developer), quindi al primo
+avvio Gatekeeper la blocca. Aprila con click destro → *Apri*, oppure:
+`xattr -dr com.apple.quarantine /Applications/Mixfonocraft.app`.
+
+**Windows:** SmartScreen può mostrare "PC protetto da Windows" → *Ulteriori informazioni* →
+*Esegui comunque*. Lanciato senza argomenti, `mixfonocraft.exe` apre la GUI (resta visibile
+anche una finestra console).
+
+Per pubblicare una nuova versione: aggiornare `version` in `Cargo.toml`, poi
+`git tag v0.1.0 && git push origin v0.1.0`.
+
 ## Compilazione
 
 Serve un toolchain Rust recente (il workspace dichiara `rust-version = 1.80`).
