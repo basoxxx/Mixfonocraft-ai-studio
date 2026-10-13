@@ -36,6 +36,13 @@ affiliato né approvato da Image-Line; FL Studio è un marchio dei rispettivi ti
 - **Formati**: progetti nativi `.mfc` (JSON), import ed export `.flp`, import ed export MIDI (`.mid`).
 - **Undo/redo** su ogni modifica, condiviso da GUI, CLI e server MCP.
 - **CLI** `mixfonocraft` per convertire, ispezionare e renderizzare progetti, con un brano dimostrativo.
+- **Plugin VST3 e CLAP**: scansione delle cartelle standard, strumenti ed effetti caricati
+  nell'app, interfaccia originale del plugin in una finestra nativa (macOS e Windows), editor
+  generico dei parametri, stato salvato nel progetto.
+- **Ingresso live**: tastiera del computer come pianoforte, tastiere MIDI hardware,
+  registrazione delle note nel pattern durante la riproduzione.
+- **Impostazioni audio**: dispositivo di uscita, frequenza di campionamento, buffer e carico CPU.
+- **Dialoghi file nativi** e **drag & drop** di progetti, MIDI, campioni WAV e plugin.
 - **Server MCP** con 47 tool per creare progetti, pattern, mix e render da un agente AI.
 
 ## Struttura del workspace
@@ -49,6 +56,7 @@ affiliato né approvato da Image-Line; FL Studio è un marchio dei rispettivi ti
 | `mfc-flp` | Lettura e scrittura dei file FL Studio (`.flp`) |
 | `mfc-midi` | Import ed export MIDI standard (SMF 0 e 1) |
 | `mfc-mcp` | Server MCP su stdio e catalogo dei tool |
+| `mfc-host` | Hosting di plugin VST3 e CLAP: scansione, istanze, parametri, stato, editor nativi |
 | `mfc-gui` | Interfaccia grafica egui: Browser, Channel Rack, Piano Roll, Playlist, Mixer, editor plugin |
 | `mfc-cli` | Binario `mixfonocraft`: CLI, server MCP e GUI |
 
@@ -180,6 +188,22 @@ Scorciatoie, in stile FL Studio:
 | `Ctrl+Z` | Annulla (`Cmd` su macOS) |
 | `Ctrl+Y` | Ripristina |
 | `Ctrl+S` | Salva (chiede il nome se il progetto non ha ancora un file) |
+| `Ctrl+Shift+S` | Salva con nome |
+| `Ctrl+O` | Apri |
+| `Ctrl+R` | Registra le note live nel pattern |
+| `Z`…`M`, `Q`…`P` | Tastiera del computer come pianoforte (due ottave, layout FL) |
+| `Shift+↑/↓` | Ottava della tastiera del computer |
+
+### Plugin VST3 e CLAP
+
+Nel Browser, sezione **Plugin VST3 / CLAP**, premere **Scansiona** per cercare i plugin nelle
+cartelle standard del sistema, oppure trascinare un file `.vst3` o `.clap` sulla finestra. Un clic
+su uno strumento crea un canale, un clic su un effetto lo aggiunge all'insert selezionato. Nell'editor
+del plugin, **Apri interfaccia** mostra la GUI originale; i parametri sono anche modificabili e
+automatizzabili dall'editor generico. Lo stato del plugin viene salvato nel progetto `.mfc`.
+
+Il menu **Audio** contiene le impostazioni dell'uscita, la scelta dell'ingresso MIDI e l'opzione
+per usare la tastiera del computer come pianoforte.
 
 ## Server MCP
 
@@ -230,7 +254,10 @@ memoria, ne verificano struttura e render (durata, livello, dissolvenza), fanno 
 
 ## Limiti attuali
 
-- Nessun hosting di plugin esterni (VST, CLAP): si usano solo i plugin nativi.
+- Plugin VST3/CLAP: su Linux l'interfaccia originale non è disponibile (si usa l'editor generico);
+  i plugin VST2 e AU non sono supportati; i plugin esterni non vengono esportati nel `.flp`.
+- Le modifiche ai parametri fatte nell'interfaccia originale del plugin vengono salvate nello stato
+  del plugin, ma non generano automazioni.
 - L'esportazione `.flp` non è stata verificata con FL Studio reale. I test coprono il round-trip
   interno e la struttura del file.
 - Le clip di automazione non vengono esportate nel `.flp`.

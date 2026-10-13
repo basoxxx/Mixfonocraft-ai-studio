@@ -11,10 +11,13 @@ members = [
     "crates/mfc-gui",
     "crates/mfc-cli",
     "crates/mfc-app",
+    "crates/mfc-host",
+    "crates/mfc-host/test-plugins/mfc-test-vst3",
+    "crates/mfc-host/test-plugins/mfc-test-clap",
 ]
 
 [workspace.package]
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/basoxxx/Mixfonocraft-ai-studio"
@@ -29,6 +32,7 @@ mfc-flp = { path = "crates/mfc-flp" }
 mfc-midi = { path = "crates/mfc-midi" }
 mfc-mcp = { path = "crates/mfc-mcp" }
 mfc-gui = { path = "crates/mfc-gui" }
+mfc-host = { path = "crates/mfc-host" }
 
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

@@ -23,6 +23,7 @@ mfc-flp.workspace = true
 mfc-midi.workspace = true
 mfc-mcp.workspace = true
 mfc-plugins.workspace = true
+mfc-host.workspace = true
 mfc-gui = { workspace = true, optional = true }
 clap.workspace = true
 anyhow.workspace = true

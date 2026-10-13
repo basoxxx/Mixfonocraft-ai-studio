@@ -1,0 +1,28 @@
+[package]
+name = "mfc-host"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Hosting di plugin VST3 e CLAP per Mixfonocraft (scansione, istanze, audio, stato, GUI)"
+
+[dependencies]
+mfc-core.workspace = true
+mfc-plugins.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+parking_lot.workspace = true
+crossbeam-channel.workspace = true
+libloading = "0.9"
+# Backend VST3
+vst3 = "0.3"
+# Backend CLAP
+clack-host = "0.2"
+clack-extensions = { version = "0.2", features = ["clack-host", "params", "state", "gui", "audio-ports", "note-ports", "log", "latency"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+core-foundation = "0.10"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+# Backend VST3: poll dei file descriptor registrati con IRunLoop
+libc = "0.2"

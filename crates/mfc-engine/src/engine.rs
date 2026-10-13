@@ -6,6 +6,7 @@
 
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use crossbeam_channel::{bounded, Receiver, Sender, TrySendError};
 use mfc_core::{ChannelId, PatternId, Project, Tick};
@@ -59,6 +60,8 @@ pub struct SharedState {
     meters: Vec<AtomicU32>,
     /// Picchi (L,R) dell'uscita finale.
     out_meter: [AtomicU32; 2],
+    /// Carico CPU levigato (tempo di elaborazione / tempo del blocco), f32 in bit.
+    cpu_bits: AtomicU32,
 }
 
 impl SharedState {
@@ -69,6 +72,7 @@ impl SharedState {
             tempo_bits: AtomicU64::new(140f64.to_bits()),
             meters: (0..n_inserts * 2).map(|_| AtomicU32::new(0)).collect(),
             out_meter: [AtomicU32::new(0), AtomicU32::new(0)],
+            cpu_bits: AtomicU32::new(0),
         }
     }
     pub fn is_playing(&self) -> bool {
@@ -98,6 +102,10 @@ impl SharedState {
     }
     pub fn insert_count(&self) -> usize {
         self.meters.len() / 2
+    }
+    /// Carico CPU stimato del thread audio (0..1, può superare 1 se il motore è in ritardo).
+    pub fn cpu_load(&self) -> f32 {
+        f32::from_bits(self.cpu_bits.load(Ordering::Relaxed))
     }
 }
 
@@ -411,6 +419,7 @@ impl Engine {
 
     /// Elabora un blocco audio. Scrive (non somma) in `left`/`right`.
     pub fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
+        let started = Instant::now();
         self.handle_commands();
         let n = left.len().min(right.len());
         let mut done = 0;
@@ -438,6 +447,22 @@ impl Engine {
         self.shared.playing.store(self.playing, Ordering::Relaxed);
         self.shared.position_bits.store(self.pos.to_bits(), Ordering::Relaxed);
         self.shared.tempo_bits.store(self.tempo.to_bits(), Ordering::Relaxed);
+        self.update_cpu_load(n, started.elapsed());
+    }
+
+    /// Aggiorna il carico CPU: tempo impiegato diviso per la durata del blocco, levigato.
+    fn update_cpu_load(&self, frames: usize, elapsed: Duration) {
+        if frames == 0 {
+            return;
+        }
+        let block_secs = frames as f32 / self.prep.sample_rate;
+        let ratio = elapsed.as_secs_f32() / block_secs;
+        if !ratio.is_finite() {
+            return;
+        }
+        let prev = f32::from_bits(self.shared.cpu_bits.load(Ordering::Relaxed));
+        let smoothed = prev * 0.9 + ratio * 0.1;
+        self.shared.cpu_bits.store(smoothed.to_bits(), Ordering::Relaxed);
     }
 
     /// Prossimo istante (tick) in cui succede qualcosa: note on/off o fine loop.
@@ -719,5 +744,21 @@ fn two_mut<T>(v: &mut [T], a: usize, b: usize) -> (&T, &mut T) {
     } else {
         let (x, y) = v.split_at_mut(a);
         (&y[0], &mut x[b])
+    }
+}
+
+#[cfg(test)]
+mod cpu_load_tests {
+    use super::*;
+
+    #[test]
+    fn cpu_load_is_finite_and_non_negative_after_a_block() {
+        let project = Project::new("cpu");
+        let (mut engine, handle) = Engine::new(&project, 48_000.0);
+        let mut l = vec![0.0f32; 512];
+        let mut r = vec![0.0f32; 512];
+        engine.process(&mut l, &mut r);
+        let load = handle.shared.cpu_load();
+        assert!(load.is_finite() && load >= 0.0, "carico CPU non valido: {load}");
     }
 }

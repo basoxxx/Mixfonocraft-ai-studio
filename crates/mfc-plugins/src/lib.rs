@@ -5,10 +5,12 @@
 
 pub mod api;
 pub mod effects;
+pub mod external;
 pub mod generators;
 pub mod sample;
 
 pub use api::*;
+pub use external::{external_host, set_external_host, ExternalHost};
 pub use sample::{load_sample, SampleError};
 
 use mfc_core::PluginInstance;
@@ -65,6 +67,15 @@ pub fn default_instance(id: &str) -> Option<PluginInstance> {
 /// l'eventuale campione (`sample_path`). Plugin sconosciuti → generatore silenzioso.
 /// NON chiamare dal thread audio (alloca, legge da disco).
 pub fn create_generator(inst: &PluginInstance, sample_rate: f32) -> Box<dyn Generator> {
+    if inst.is_external() {
+        // L'host applica da sé stato e parametri; senza host il canale resta muto.
+        if let Some(g) = external_host().and_then(|h| h.create_generator(inst, sample_rate)) {
+            return g;
+        }
+        let mut g = generators::create(&PluginInstance::new(ids::SILENT));
+        g.set_sample_rate(sample_rate);
+        return g;
+    }
     let mut g = generators::create(inst);
     g.set_sample_rate(sample_rate);
     for (k, v) in &inst.params {
@@ -75,6 +86,9 @@ pub fn create_generator(inst: &PluginInstance, sample_rate: f32) -> Box<dyn Gene
 
 /// Crea un effetto; `None` se l'id non è un effetto noto (lo slot viene bypassato).
 pub fn create_effect(inst: &PluginInstance, sample_rate: f32) -> Option<Box<dyn Effect>> {
+    if inst.is_external() {
+        return external_host().and_then(|h| h.create_effect(inst, sample_rate));
+    }
     let mut fx = effects::create(&inst.kind)?;
     fx.set_sample_rate(sample_rate);
     for (k, v) in &inst.params {

@@ -107,6 +107,10 @@ pub fn show(ctx: &Context, studio: &mut Studio) {
 
 fn body(ui: &mut Ui, studio: &mut Studio, target: PluginTarget, r: &Resolved, plugin_name: &str) {
     let inst = &r.inst;
+    if inst.is_external() {
+        external_body(ui, studio, target, r, plugin_name);
+        return;
+    }
     let Some(desc) = descriptor(&inst.kind) else {
         ui.label(RichText::new(format!("Plugin esterno non supportato: {plugin_name}")).color(pal::YELLOW));
         ui.label(
@@ -299,6 +303,123 @@ fn param_control(ui: &mut Ui, studio: &mut Studio, target: PluginTarget, key: &s
             }
         });
     });
+}
+
+/// Editor di un plugin VST3/CLAP: pulsante per l'interfaccia originale e controlli
+/// generici per i parametri esposti dal plugin.
+fn external_body(ui: &mut Ui, studio: &mut Studio, target: PluginTarget, r: &Resolved, plugin_name: &str) {
+    let inst = &r.inst;
+    let id = inst.instance_id.clone().unwrap_or_else(|| inst.kind.clone());
+    let live_inst = studio.host.instance(&id);
+    let format = mfc_host::parse_kind(&inst.kind).map_or("?", |k| k.format.label());
+    ui.horizontal(|ui| {
+        let (ir, _) = ui.allocate_exact_size(vec2(34.0, 34.0), Sense::hover());
+        ui.painter().rect_filled(ir, 6.0, pal::BG_INSET);
+        widgets::paint_icon(ui.painter(), ir.shrink(8.0), Icon::Plugin, pal::ACCENT);
+        ui.vertical(|ui| {
+            ui.spacing_mut().item_spacing.y = 1.0;
+            ui.label(RichText::new(plugin_name).font(theme::bold_font(15.0)).color(pal::TEXT));
+            let vendor = live_inst.as_ref().map(|i| i.info().vendor.clone()).unwrap_or_default();
+            ui.label(
+                RichText::new(format!("{format}  {vendor}"))
+                    .size(11.0)
+                    .color(pal::TEXT_DIM),
+            );
+        });
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            let can_open =
+                crate::plugin_window::PluginWindow::SUPPORTED && live_inst.as_ref().is_some_and(|i| i.has_editor());
+            let open = studio.plugin_windows.contains_key(&id);
+            let btn = ui
+                .add_enabled(
+                    can_open,
+                    egui::Button::new(if open { "Interfaccia aperta" } else { "Apri interfaccia" }),
+                )
+                .on_disabled_hover_text("Interfaccia originale non disponibile: usa i controlli qui sotto");
+            if btn.clicked() {
+                let title = format!("{plugin_name} · {}", r.title);
+                studio.open_plugin_window(&id, &title);
+            }
+        });
+    });
+    ui.add_space(6.0);
+    let Some(live_inst) = live_inst else {
+        ui.label(
+            RichText::new("Plugin non caricato: controlla che sia ancora installato nello stesso percorso.")
+                .color(pal::YELLOW),
+        );
+        ui.label(RichText::new(&inst.kind).size(10.5).color(pal::TEXT_FAINT));
+        return;
+    };
+
+    // Filtro sui parametri (alcuni plugin ne espongono centinaia).
+    let filter_id = Id::new(("ext_param_filter", &id));
+    let mut filter: String = ui.data(|d| d.get_temp(filter_id)).unwrap_or_default();
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("Parametri").color(pal::TEXT_DIM));
+        if ui
+            .add(
+                egui::TextEdit::singleline(&mut filter)
+                    .hint_text("cerca…")
+                    .desired_width(160.0),
+            )
+            .changed()
+        {
+            ui.data_mut(|d| d.insert_temp(filter_id, filter.clone()));
+        }
+    });
+    ui.add_space(4.0);
+    let needle = filter.to_lowercase();
+    let params: Vec<mfc_host::ExternalParam> = live_inst
+        .params()
+        .into_iter()
+        .filter(|p| !p.hidden && (needle.is_empty() || p.name.to_lowercase().contains(&needle)))
+        .collect();
+    let key = salt(target);
+    egui::ScrollArea::vertical()
+        .max_height(420.0)
+        .auto_shrink([false, true])
+        .show(ui, |ui| {
+            if params.is_empty() {
+                ui.label(RichText::new("Nessun parametro").color(pal::TEXT_FAINT));
+            }
+            egui::Grid::new(("ext_params", &key))
+                .num_columns(2)
+                .striped(true)
+                .show(ui, |ui| {
+                    for p in &params {
+                        let name = mfc_host::param_key(p.id);
+                        let current = live_inst.param_normalized(p.id) as f32;
+                        // Valore registrato nel progetto (-1 = mai toccato): decide se committare.
+                        let saved = inst.params.get(&name).copied().unwrap_or(-1.0);
+                        ui.label(RichText::new(&p.name).color(pal::TEXT));
+                        let wid = Id::new(format!("{key}:{name}:live"));
+                        let mut v = live(ui.ctx(), wid, current);
+                        let text = live_inst.param_display(p.id, v as f64);
+                        let r = ui.add(
+                            egui::Slider::new(&mut v, 0.0..=1.0)
+                                .show_value(false)
+                                .text(format!("{text} {}", p.unit)),
+                        );
+                        if r.changed() {
+                            // Ascolto immediato durante il trascinamento; commit al rilascio.
+                            live_inst.set_param_normalized(p.id, v as f64);
+                        }
+                        if r.double_clicked() {
+                            live_inst.set_param_normalized(p.id, p.default);
+                            studio.exec(param_cmd(target, &name, p.default as f32));
+                        } else if let Some(nv) = settle(ui.ctx(), wid, &r, v, saved) {
+                            studio.exec(param_cmd(target, &name, nv));
+                        }
+                        ui.end_row();
+                    }
+                });
+        });
+
+    if let Some((channel, _, root)) = r.channel {
+        ui.add_space(8.0);
+        test_keyboard(ui, studio, channel, root);
+    }
 }
 
 /// Tastiera di prova di due ottave dalla nota di riferimento: tenere premuto suona la nota.

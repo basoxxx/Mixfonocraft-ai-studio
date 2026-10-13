@@ -4,6 +4,9 @@
 //! step sequencer, Piano Roll, Playlist, Mixer ed editor dei plugin.
 
 pub mod app;
+pub mod input;
+pub mod plugin_window;
+pub mod plugins;
 #[cfg(feature = "snapshot")]
 pub mod snapshot;
 pub mod state;

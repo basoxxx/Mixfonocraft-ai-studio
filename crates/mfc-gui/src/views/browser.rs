@@ -4,7 +4,9 @@
 //! selezionato; click su un'automazione la piazza in fondo alla Playlist.
 
 use egui::{pos2, vec2, Align2, Color32, FontId, Id, Rect, Response, RichText, Sense, Stroke, Ui};
-use mfc_core::{AutomationId, ChannelId, ClipSource, Command, PatternId, Project, PLAYLIST_TRACKS};
+use mfc_core::{
+    AutomationId, ChannelId, ChannelKind, ClipSource, Command, Outcome, PatternId, Project, PLAYLIST_TRACKS,
+};
 use mfc_plugins::{default_instance, registry, PluginRole};
 
 use crate::state::Studio;
@@ -185,6 +187,10 @@ pub fn show(ui: &mut Ui, studio: &mut Studio) {
                     if section(ui, "Effetti", fx, false) {
                         effects(ui, studio);
                     }
+                    let ext = studio.host.catalog().len();
+                    if section(ui, "Plugin VST3 / CLAP", ext, ext > 0) {
+                        external_plugins(ui, studio);
+                    }
                     if section(ui, "Automazioni", studio.project.automations.len(), false) {
                         automations(ui, studio);
                     }
@@ -309,6 +315,87 @@ fn effects(ui: &mut Ui, studio: &mut Studio) {
                     slot: None,
                 });
             }
+        }
+    }
+}
+
+/// Scansiona le cartelle standard dei plugin e salva il catalogo.
+pub fn scan_plugins(studio: &mut Studio) {
+    let paths = studio.host.search_paths(&[]);
+    let report = studio.host.scan(&paths);
+    crate::plugins::save_catalog(&studio.host);
+    studio.status = format!(
+        "Scansione: {} plugin in {} file{}",
+        report.plugins.len(),
+        report.scanned,
+        if report.errors.is_empty() {
+            String::new()
+        } else {
+            format!(" ({} non leggibili)", report.errors.len())
+        }
+    );
+}
+
+/// Aggiunge un plugin del catalogo: strumento → nuovo canale, effetto → insert selezionato.
+pub fn add_external(studio: &mut Studio, info: &mfc_host::PluginInfo) {
+    let plugin = crate::plugins::new_instance(info);
+    if info.is_instrument {
+        if let Some(Outcome::Channel(c)) = studio.exec(Command::AddChannel {
+            name: info.name.clone(),
+            kind: ChannelKind::Generator,
+            plugin,
+            mixer_insert: None,
+        }) {
+            studio.selected_channel = Some(c);
+        }
+    } else {
+        studio.exec(Command::AddEffect {
+            insert: studio.selected_insert,
+            plugin,
+            slot: None,
+        });
+    }
+}
+
+fn external_plugins(ui: &mut Ui, studio: &mut Studio) {
+    ui.horizontal(|ui| {
+        ui.add_space(6.0);
+        if ui
+            .small_button("Scansiona")
+            .on_hover_text("Cerca i plugin nelle cartelle standard VST3 e CLAP")
+            .clicked()
+        {
+            scan_plugins(studio);
+        }
+        ui.label(
+            RichText::new("o trascina un .vst3/.clap")
+                .size(10.5)
+                .color(pal::TEXT_FAINT),
+        );
+    });
+    let insert = studio.selected_insert;
+    for info in studio.host.catalog() {
+        let (mark, hint) = if info.is_instrument {
+            (
+                Mark::Icon(Icon::Wave, pal::ACCENT),
+                "Clic: aggiunge un canale".to_string(),
+            )
+        } else {
+            (
+                Mark::Icon(Icon::Plugin, pal::BLUE),
+                format!("Clic: aggiunge all'insert {insert}"),
+            )
+        };
+        let sub = info.format.label();
+        let resp = item(ui, mark, &info.name, sub, false).on_hover_text(format!(
+            "{} · {}\n{}\n{}",
+            info.vendor,
+            info.category,
+            info.path.display(),
+            hint
+        ));
+        if resp.clicked() {
+            add_external(studio, &info);
         }
     }
 }
