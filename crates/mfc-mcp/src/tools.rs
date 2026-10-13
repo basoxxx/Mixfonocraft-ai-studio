@@ -143,16 +143,16 @@ fn channel_json(p: &Project, c: &Channel) -> Value {
     })
 }
 
-fn db(g: f32) -> f32 {
+fn db(g: f32) -> f64 {
     if g <= 1e-9 {
         -120.0
     } else {
-        (20.0 * g.log10() * 10.0).round() / 10.0
+        (20.0 * f64::from(g).log10() * 10.0).round() / 10.0
     }
 }
 
 /// Livello (dB) di un fader dato posizione e posizione di 0 dB.
-fn fader_db(pos: f32, unity: f32) -> f32 {
+fn fader_db(pos: f32, unity: f32) -> f64 {
     db(fader_gain(pos, unity))
 }
 

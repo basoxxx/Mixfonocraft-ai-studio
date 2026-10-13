@@ -91,6 +91,13 @@ e l'eseguibile `mixfonocraft` per CLI e server MCP. L'audio realtime è attivo (
 
 **CLI e server MCP**
 
+Il bundle macOS contiene due eseguibili in `Contents/MacOS/`:
+
+| Eseguibile | Uso |
+|---|---|
+| `mixfonocraft-studio` | L'app: è quello che lanciano il doppio click, il Dock e `open -a Mixfonocraft` |
+| `mixfonocraft` | CLI e server MCP (`mixfonocraft mcp …`): va indicato per percorso completo |
+
 - macOS: `/Applications/Mixfonocraft.app/Contents/MacOS/mixfonocraft mcp --workdir /percorso/progetti`
 - Windows: `mixfonocraft.exe` nella cartella di installazione (`C:\Program Files\Mixfonocraft AI Studio\`
   per l'MSI e per Setup.exe con installazione per tutto il computer,
@@ -164,8 +171,14 @@ Tutti i comandi: `mixfonocraft --help` e `mixfonocraft <comando> --help`.
 ## GUI
 
 ```sh
-mixfonocraft gui [progetto.mfc]
+mixfonocraft gui [progetto.mfc] [--mcp] [--workdir DIR]
 ```
+
+Un progetto `.mfc` si riapre con la vista (Playlist, Channel Rack…) e la modalità Song/Pattern
+con cui è stato salvato. Un progetto senza questo stato (per esempio creato da un agente via MCP)
+si apre in Song sulla Playlist se ha clip, altrimenti in Pattern sul Channel Rack, sul primo pattern.
+Su macOS i file `.mfc`, `.flp` e `.mid` si aprono anche con doppio click nel Finder o con
+`open -a Mixfonocraft file.mfc`, pure ad app già aperta (con conferma se ci sono modifiche non salvate).
 
 Scorciatoie, in stile FL Studio:
 
@@ -204,6 +217,20 @@ Claude Desktop, in `claude_desktop_config.json`:
   }
 }
 ```
+
+### Collegamento live con la GUI
+
+Per vedere nella finestra le modifiche dell'agente mentre lavora, attiva il collegamento live
+nella GUI (menu **Agente → Collegamento MCP live**, oppure avvia `mixfonocraft-studio --mcp` o
+`mixfonocraft gui --mcp`) e registra il server con `--attach`:
+
+```sh
+claude mcp add mixfonocraft -- /percorso/a/mixfonocraft mcp --attach --workdir /percorso/progetti
+```
+
+Con `--attach` i tool lavorano sul progetto aperto nella finestra, con lo stesso undo (Ctrl+Z
+annulla anche le modifiche dell'agente) e la stessa uscita audio. Se nessuna GUI è in ascolto,
+`--attach` avvia la normale sessione headless. Dettagli in [`docs/MCP.md`](docs/MCP.md#7-collegamento-live-con-la-gui).
 
 Protocollo, catalogo dei 47 tool, unità di misura ed esempio di sessione completa sono in
 [`docs/MCP.md`](docs/MCP.md). Una sessione pronta da eseguire è in

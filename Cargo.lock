@@ -1367,7 +1367,7 @@ dependencies = [
 
 [[package]]
 name = "mfc-app"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "mfc-core",
  "mfc-gui",
@@ -1376,7 +1376,7 @@ dependencies = [
 
 [[package]]
 name = "mfc-cli"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -1392,7 +1392,7 @@ dependencies = [
 
 [[package]]
 name = "mfc-core"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -1401,11 +1401,11 @@ dependencies = [
 
 [[package]]
 name = "mfc-dsp"
-version = "0.2.0"
+version = "0.2.1"
 
 [[package]]
 name = "mfc-engine"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "cpal",
  "crossbeam-channel",
@@ -1418,7 +1418,7 @@ dependencies = [
 
 [[package]]
 name = "mfc-flp"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "mfc-core",
  "serde",
@@ -1427,7 +1427,7 @@ dependencies = [
 
 [[package]]
 name = "mfc-gui"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "eframe",
  "egui",
@@ -1445,7 +1445,7 @@ dependencies = [
 
 [[package]]
 name = "mfc-mcp"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "hound",
  "mfc-core",
@@ -1460,7 +1460,7 @@ dependencies = [
 
 [[package]]
 name = "mfc-midi"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "mfc-core",
  "midly",
@@ -1469,7 +1469,7 @@ dependencies = [
 
 [[package]]
 name = "mfc-plugins"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "hound",
  "mfc-core",
