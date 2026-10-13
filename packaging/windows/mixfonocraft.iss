@@ -79,8 +79,16 @@ Root: HKA; Subkey: "Software\Classes\MixfonocraftProject\shell\open\command"; Va
 
 [Run]
 Filename: "{app}\{#StudioExe}"; Description: "Avvia {#AppName}"; WorkingDir: "{app}"; Flags: nowait postinstall skipifsilent
+; Riavvio dopo l'aggiornamento automatico (setup silenzioso lanciato dall'app con /RELAUNCH).
+Filename: "{app}\{#StudioExe}"; WorkingDir: "{app}"; Flags: nowait runasoriginaluser; Check: RelaunchRequested
 
 [Code]
+// True quando l'app ha avviato il setup silenzioso chiedendo di essere riaperta.
+function RelaunchRequested: Boolean;
+begin
+  Result := WizardSilent and (Pos('/RELAUNCH', Uppercase(GetCmdTail)) > 0);
+end;
+
 const
   EnvSubkeyUser = 'Environment';
   EnvSubkeyMachine = 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment';

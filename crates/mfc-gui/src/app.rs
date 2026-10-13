@@ -142,6 +142,8 @@ pub struct StudioApp {
     audio_settings: views::settings::AudioSettings,
     /// Autosalvataggio e recupero (vedi `autosave.rs`).
     pub autosave: crate::autosave::Autosave,
+    /// Aggiornamenti automatici (inerte finché non si usa `Updater::load`).
+    pub updater: views::update_ui::Updater,
 }
 
 impl StudioApp {
@@ -153,6 +155,7 @@ impl StudioApp {
             dialog: None,
             audio_settings: Default::default(),
             autosave: Default::default(),
+            updater: Default::default(),
         }
     }
 
@@ -212,6 +215,7 @@ impl StudioApp {
             });
         views::plugin_editor::show(ui.ctx(), &mut self.studio);
         views::settings::show(ui.ctx(), &mut self.studio, &mut self.audio_settings);
+        views::update_ui::show(ui.ctx(), &mut self.studio, &mut self.updater);
         self.file_dialog(ui.ctx());
         // HOOK autosave: salvataggio periodico e finestra di recupero.
         self.autosave.tick(&mut self.studio, ui.ctx());
@@ -416,6 +420,9 @@ impl StudioApp {
                         }
                     }
                 });
+            });
+            ui.menu_button(RichText::new("Aiuto").color(pal::TEXT_DIM), |ui| {
+                views::update_ui::help_menu(ui, &mut self.updater)
             });
             toolbar_sep(ui, h);
 

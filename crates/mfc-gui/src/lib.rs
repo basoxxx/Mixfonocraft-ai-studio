@@ -13,6 +13,7 @@ pub mod plugins;
 pub mod snapshot;
 pub mod state;
 pub mod theme;
+pub mod update;
 pub mod views;
 
 pub use app::StudioApp;
@@ -43,6 +44,7 @@ pub fn run(project: mfc_core::Project, path: Option<std::path::PathBuf>) -> efra
             studio.path = path;
             let mut app = StudioApp::new(studio);
             app.autosave.start();
+            app.updater = views::update_ui::Updater::load();
             Ok(Box::new(app))
         }),
     )

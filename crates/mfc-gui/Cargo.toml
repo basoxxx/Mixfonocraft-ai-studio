@@ -23,7 +23,11 @@ mfc-host.workspace = true
 crossbeam-channel.workspace = true
 eframe = { workspace = true, default-features = false, features = ["default_fonts", "glow", "x11", "wayland"] }
 egui.workspace = true
+serde.workspace = true
 serde_json.workspace = true
+# Aggiornamenti automatici: HTTPS con rustls (niente OpenSSL) e confronto di versioni.
+ureq = { version = "3", default-features = false, features = ["rustls"] }
+semver = "1"
 # Dialoghi nativi. Su Linux niente GTK: backend XDG desktop portal (nessun header di sistema).
 rfd = { version = "0.17", default-features = false, features = ["xdg-portal", "pollster", "common-controls-v6"] }
 png = { version = "0.18", optional = true }
