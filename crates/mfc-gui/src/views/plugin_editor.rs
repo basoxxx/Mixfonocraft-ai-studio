@@ -132,12 +132,24 @@ fn body(ui: &mut Ui, studio: &mut Studio, target: PluginTarget, r: &Resolved, pl
             Icon::Plugin
         };
         widgets::paint_icon(ui.painter(), ir.shrink(8.0), icon, pal::ACCENT);
+        // Spazio a destra per Reset e menu dei preset.
+        let reserve = if mfc_plugins::presets(desc.id).is_empty() {
+            80.0
+        } else {
+            260.0
+        };
         ui.vertical(|ui| {
+            ui.set_max_width((ui.available_width() - reserve).max(120.0));
             ui.spacing_mut().item_spacing.y = 1.0;
             ui.label(RichText::new(desc.name).font(theme::bold_font(15.0)).color(pal::TEXT));
             ui.label(RichText::new(desc.description).size(11.0).color(pal::TEXT_DIM));
         });
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            let list = mfc_plugins::presets(desc.id);
+            if !list.is_empty() {
+                // Si applica prima il Reset (a destra), poi la scelta del preset.
+                preset_menu(ui, studio, target, desc, list);
+            }
             if ui
                 .button("Reset")
                 .on_hover_text("Ripristina tutti i parametri ai valori di default")
@@ -207,10 +219,16 @@ pub fn param_group(name: &str) -> String {
             let word = match word.as_str() {
                 "osc" => "Oscillatore",
                 "band" => "Banda",
+                "lfo" => "LFO",
                 other => other,
             };
             format!("{word} {num}")
         }
+        Some(("sub" | "noise", _)) => "Sub e rumore".to_string(),
+        Some(("flt", _)) => "Filtro".to_string(),
+        Some(("fenv", _)) => "Inviluppo filtro".to_string(),
+        Some(("aenv", _)) => "Inviluppo ampiezza".to_string(),
+        Some(("voice", _)) => "Voce".to_string(),
         _ => "Generale".to_string(),
     }
 }
@@ -303,6 +321,40 @@ fn param_control(ui: &mut Ui, studio: &mut Studio, target: PluginTarget, key: &s
             }
         });
     });
+}
+
+/// Menu dei preset di fabbrica, raggruppati per categoria.
+fn preset_menu(
+    ui: &mut Ui,
+    studio: &mut Studio,
+    target: PluginTarget,
+    desc: &'static PluginDescriptor,
+    list: &'static [mfc_plugins::Preset],
+) {
+    let mut chosen = None;
+    egui::ComboBox::from_id_salt(("presets", salt(target)))
+        .selected_text("Preset…")
+        .width(150.0)
+        .show_ui(ui, |ui| {
+            let mut category = "";
+            for p in list {
+                if p.category != category {
+                    category = p.category;
+                    ui.label(RichText::new(category).size(10.5).color(pal::TEXT_FAINT));
+                }
+                if ui.selectable_label(false, format!("  {}", p.name)).clicked() {
+                    chosen = Some(p);
+                }
+            }
+        });
+    if let Some(p) = chosen {
+        let commands = mfc_plugins::preset_values(desc, p)
+            .into_iter()
+            .map(|(k, v)| param_cmd(target, k, v))
+            .collect();
+        studio.exec(Command::Batch { commands });
+        studio.status = format!("Preset: {}", p.name);
+    }
 }
 
 /// Editor di un plugin VST3/CLAP: pulsante per l'interfaccia originale e controlli
@@ -540,6 +592,16 @@ mod tests {
         assert!(is_toggle_param(&param("key_track", 0.0, 1.0)));
         assert!(!is_toggle_param(&param("reverse", 0.0, 2.0)));
         assert!(!is_toggle_param(&param("cutoff", 0.0, 1.0)));
+    }
+
+    #[test]
+    fn nova_groups() {
+        assert_eq!(param_group("osc2_detune"), "Oscillatore 2");
+        assert_eq!(param_group("lfo1_rate"), "LFO 1");
+        assert_eq!(param_group("flt_cutoff"), "Filtro");
+        assert_eq!(param_group("aenv_release"), "Inviluppo ampiezza");
+        assert_eq!(param_group("noise_level"), "Sub e rumore");
+        assert_eq!(param_group("ping_pong"), "Generale");
     }
 
     #[test]
