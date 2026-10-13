@@ -230,6 +230,24 @@ impl Host {
         live.into_iter().map(|(k, i)| (k, i.save_state())).collect()
     }
 
+    /// Cambi di parametro fatti nelle interfacce originali delle istanze vive dall'ultima
+    /// chiamata: `(instance_id, id parametro, valore normalizzato)` (thread UI).
+    pub fn take_param_changes(&self) -> Vec<(String, u32, f64)> {
+        let live: Vec<(String, Arc<dyn ExternalInstance>)> = self
+            .live
+            .lock()
+            .iter()
+            .map(|(k, l)| (k.clone(), l.instance.clone()))
+            .collect();
+        let mut out = Vec::new();
+        for (k, inst) in live {
+            for (id, v) in inst.take_param_changes() {
+                out.push((k.clone(), id, v));
+            }
+        }
+        out
+    }
+
     /// Errori accumulati (svuotati alla lettura).
     pub fn take_errors(&self) -> Vec<String> {
         std::mem::take(&mut *self.errors.lock())

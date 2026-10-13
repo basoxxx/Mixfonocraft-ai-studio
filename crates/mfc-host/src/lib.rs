@@ -235,6 +235,61 @@ pub trait ExternalInstance: Send + Sync {
     fn latency(&self) -> u32 {
         0
     }
+
+    /// Svuota i cambi di parametro fatti dall'utente nell'interfaccia originale del plugin
+    /// dall'ultima chiamata: `(id, valore normalizzato)`, solo l'ultimo valore per id.
+    /// Chiamato dal thread UI (registrazione delle automazioni, sincronizzazione del progetto).
+    fn take_param_changes(&self) -> Vec<(u32, f64)> {
+        Vec::new()
+    }
+}
+
+/// Capacità di [`ParamChangeLog`].
+pub const PARAM_CHANGE_CAP: usize = 2048;
+
+/// Coda limitata (senza allocazioni dopo la creazione, sicura da qualunque thread, anche
+/// quello audio) dei cambi di parametro fatti dal plugin stesso. Se piena scarta il più
+/// vecchio. Svuotata dal thread UI con [`ParamChangeLog::drain`].
+pub struct ParamChangeLog {
+    tx: crossbeam_channel::Sender<(u32, f64)>,
+    rx: crossbeam_channel::Receiver<(u32, f64)>,
+}
+
+impl Default for ParamChangeLog {
+    fn default() -> Self {
+        Self::new(PARAM_CHANGE_CAP)
+    }
+}
+
+impl ParamChangeLog {
+    pub fn new(cap: usize) -> Self {
+        let (tx, rx) = crossbeam_channel::bounded(cap.max(1));
+        Self { tx, rx }
+    }
+
+    /// Accoda un cambio (valore normalizzato, limitato a 0..1; i valori non finiti sono ignorati).
+    pub fn push(&self, id: u32, value: f64) {
+        if !value.is_finite() {
+            return;
+        }
+        let v = (id, value.clamp(0.0, 1.0));
+        if let Err(crossbeam_channel::TrySendError::Full(v)) = self.tx.try_send(v) {
+            let _ = self.rx.try_recv();
+            let _ = self.tx.try_send(v);
+        }
+    }
+
+    /// Svuota la coda: un elemento per id (nell'ordine della prima comparsa) con l'ultimo valore.
+    pub fn drain(&self) -> Vec<(u32, f64)> {
+        let mut out: Vec<(u32, f64)> = Vec::new();
+        while let Ok((id, v)) = self.rx.try_recv() {
+            match out.iter_mut().find(|(i, _)| *i == id) {
+                Some(e) => e.1 = v,
+                None => out.push((id, v)),
+            }
+        }
+        out
+    }
 }
 
 /// Backend di un formato.
@@ -286,5 +341,25 @@ mod tests {
         assert_eq!(param_key(42), "p42");
         assert_eq!(parse_param_key("p42"), Some(42));
         assert_eq!(parse_param_key("cutoff"), None);
+    }
+
+    #[test]
+    fn param_change_log_keeps_last_value_per_id() {
+        let log = ParamChangeLog::new(8);
+        assert!(log.drain().is_empty());
+        log.push(3, 0.1);
+        log.push(1, 0.5);
+        log.push(3, 0.7);
+        log.push(2, f64::NAN);
+        log.push(1, 1.5);
+        assert_eq!(log.drain(), vec![(3, 0.7), (1, 1.0)]);
+        assert!(log.drain().is_empty());
+        // Piena: scarta il più vecchio.
+        for i in 0..10 {
+            log.push(i, 0.25);
+        }
+        let d = log.drain();
+        assert_eq!(d.len(), 8);
+        assert_eq!(d[0], (2, 0.25));
     }
 }

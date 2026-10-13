@@ -75,6 +75,8 @@ pub(crate) struct Shared {
     pub(crate) resize: Mutex<Option<EditorSize>>,
     /// Flag di `restartComponent` non ancora gestiti.
     pub(crate) restart: AtomicI32,
+    /// Modifiche fatte dall'utente nella GUI del plugin (`performEdit`), lette dal thread UI.
+    pub(crate) gui_edits: crate::ParamChangeLog,
     run_loop: Mutex<RunLoop>,
 }
 
@@ -83,6 +85,7 @@ impl Shared {
         Self {
             to_proc: ParamQueue::new(),
             to_ctrl: ParamQueue::new(),
+            gui_edits: crate::ParamChangeLog::default(),
             resize: Mutex::new(None),
             restart: AtomicI32::new(0),
             run_loop: Mutex::new(RunLoop::default()),
@@ -221,8 +224,10 @@ impl IComponentHandlerTrait for HostContext {
     }
     unsafe fn performEdit(&self, id: ParamID, value: ParamValue) -> tresult {
         // Modifica dalla GUI del plugin: il controller la conosce già, la giriamo al
-        // processore.
-        self.shared.to_proc.push(id, value.clamp(0.0, 1.0));
+        // processore e la registriamo per la GUI dell'host (automazioni, progetto).
+        let v = value.clamp(0.0, 1.0);
+        self.shared.to_proc.push(id, v);
+        self.shared.gui_edits.push(id, v);
         kResultOk
     }
     unsafe fn endEdit(&self, _id: ParamID) -> tresult {
@@ -531,6 +536,10 @@ mod tests {
             handler.performEdit(7, 0.25);
             handler.restartComponent(RestartFlags_::kLatencyChanged);
             assert_eq!(shared.to_proc.pop(), Some((7, 0.25)));
+            handler.performEdit(7, 0.5);
+            handler.performEdit(3, 2.0);
+            assert_eq!(shared.gui_edits.drain(), vec![(7, 0.5), (3, 1.0)]);
+            shared.to_proc.clear();
             assert_eq!(shared.restart.load(Ordering::Relaxed), RestartFlags_::kLatencyChanged);
 
             let frame: ComRef<IPlugFrame> = host.as_com_ref().unwrap();
