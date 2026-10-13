@@ -16,7 +16,10 @@ fn build_plugin() -> PathBuf {
     if profile_dir.file_name().is_some_and(|n| n == "release") {
         cmd.arg("--release");
     }
-    assert!(cmd.status().expect("avvio cargo").success(), "build di mfc-test-clap fallita");
+    assert!(
+        cmd.status().expect("avvio cargo").success(),
+        "build di mfc-test-clap fallita"
+    );
     let lib = profile_dir.join(format!(
         "{}mfc_test_clap{}",
         std::env::consts::DLL_PREFIX,
