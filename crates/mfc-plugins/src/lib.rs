@@ -25,6 +25,7 @@ pub mod ids {
     pub const KICK: &str = "mfc.kick";
     pub const DRUMSYNTH: &str = "mfc.drumsynth";
     pub const SUPERSAW: &str = "mfc.supersaw";
+    pub const NOVA: &str = "mfc.nova";
     pub const SILENT: &str = "mfc.silent";
     // Effetti
     pub const EQ: &str = "mfc.eq";
@@ -51,6 +52,29 @@ pub fn registry() -> &'static [&'static PluginDescriptor] {
 /// Descrittore per id.
 pub fn descriptor(id: &str) -> Option<&'static PluginDescriptor> {
     REGISTRY.iter().copied().find(|d| d.id == id)
+}
+
+/// Preset di fabbrica di un plugin nativo (vuoto se non ne ha).
+pub fn presets(id: &str) -> &'static [Preset] {
+    match id {
+        ids::NOVA => generators::nova::PRESETS,
+        _ => &[],
+    }
+}
+
+/// Valori completi di un preset: default del descrittore sovrascritti dal preset.
+pub fn preset_values(desc: &PluginDescriptor, preset: &Preset) -> Vec<(&'static str, f32)> {
+    desc.params
+        .iter()
+        .map(|p| {
+            let v = preset
+                .values
+                .iter()
+                .find(|(k, _)| *k == p.name)
+                .map_or(p.default, |(_, v)| *v);
+            (p.name, v)
+        })
+        .collect()
 }
 
 /// Istanza `PluginInstance` con tutti i parametri ai valori di default.
@@ -105,6 +129,7 @@ static REGISTRY: &[&PluginDescriptor] = &[
     &generators::kick::DESCRIPTOR,
     &generators::drumsynth::DESCRIPTOR,
     &generators::supersaw::DESCRIPTOR,
+    &generators::nova::DESCRIPTOR,
     &generators::silent::DESCRIPTOR,
     &effects::eq::DESCRIPTOR,
     &effects::compressor::DESCRIPTOR,

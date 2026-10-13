@@ -853,19 +853,16 @@ pub fn build_demo() -> Result<Project> {
         ],
         4,
     )?;
-    let lead = add_channel(
-        &mut p,
-        "Lead",
-        "mfc.supersaw",
-        &[
-            ("cutoff", 7000.0),
-            ("resonance", 0.15),
-            ("attack", 0.02),
-            ("release", 0.4),
-            ("amp", 0.45),
-        ],
-        5,
-    )?;
+    // Lead sul synth Nova, preset "Supersaw Lead".
+    let nova = mfc_plugins::descriptor(mfc_plugins::ids::NOVA).ok_or_else(|| anyhow!("Nova assente"))?;
+    let preset = mfc_plugins::presets(nova.id)
+        .iter()
+        .find(|p| p.name == "Supersaw Lead")
+        .ok_or_else(|| anyhow!("preset Nova assente"))?;
+    let mut lead_params = mfc_plugins::preset_values(nova, preset);
+    lead_params.retain(|(k, _)| *k != "amp");
+    lead_params.push(("amp", 0.45));
+    let lead = add_channel(&mut p, "Lead", nova.id, &lead_params, 5)?;
     set_pan(&mut p, hats, 0.2)?;
     set_pan(&mut p, lead, -0.15)?;
 

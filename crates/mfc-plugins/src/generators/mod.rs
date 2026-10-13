@@ -3,6 +3,7 @@
 pub mod boobass;
 pub mod drumsynth;
 pub mod kick;
+pub mod nova;
 pub mod osc3;
 pub mod sampler;
 pub mod silent;
@@ -34,6 +35,7 @@ pub fn create(inst: &PluginInstance) -> Box<dyn Generator> {
         ids::KICK => Box::new(kick::Kick::new()),
         ids::DRUMSYNTH => Box::new(drumsynth::DrumSynth::new()),
         ids::SUPERSAW => Box::new(supersaw::Supersaw::new()),
+        ids::NOVA => Box::new(nova::Nova::new()),
         _ => Box::new(silent::Silent::new()),
     }
 }

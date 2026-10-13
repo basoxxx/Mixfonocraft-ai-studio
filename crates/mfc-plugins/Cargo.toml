@@ -10,3 +10,6 @@ mfc-core.workspace = true
 mfc-dsp.workspace = true
 hound.workspace = true
 thiserror.workspace = true
+
+[dev-dependencies]
+hound.workspace = true

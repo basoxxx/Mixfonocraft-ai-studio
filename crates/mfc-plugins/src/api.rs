@@ -13,6 +13,14 @@ pub enum PluginRole {
     Effect,
 }
 
+/// Preset di fabbrica: nome, categoria e valori che differiscono dai default.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Preset {
+    pub name: &'static str,
+    pub category: &'static str,
+    pub values: &'static [(&'static str, f32)],
+}
+
 /// Descrittore di un parametro. I valori sono "reali" (non normalizzati).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ParamDesc {

@@ -272,3 +272,31 @@ fn stdio_loop() {
     assert_eq!(lines[1]["error"]["code"], -32700);
     assert_eq!(lines[2]["result"]["isError"], false);
 }
+
+#[test]
+fn nova_presets_via_channel_add() {
+    let mut c = Client::new("nova");
+    c.call("project_new", json!({"title": "Nova"}));
+    let list = c.call("plugin_list", json!({"role": "generator"}));
+    let nova = list["plugins"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["id"] == "mfc.nova")
+        .expect("nova in plugin_list")
+        .clone();
+    assert!(nova["presets"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|p| p["name"] == "Acid Bass"));
+    c.call(
+        "channel_add",
+        json!({"name": "Bass", "plugin": "mfc.nova", "preset": "acid bass", "params": {"flt_cutoff": 500}}),
+    );
+    let msg = c.call_err(
+        "channel_add",
+        json!({"name": "x", "plugin": "mfc.nova", "preset": "Nope"}),
+    );
+    assert!(msg.contains("preset sconosciuto"), "{msg}");
+}

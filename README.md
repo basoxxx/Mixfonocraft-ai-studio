@@ -29,13 +29,16 @@ affiliato né approvato da Image-Line; FL Studio è un marchio dei rispettivi ti
 - **Step sequencer** a 1/16 e **piano roll** con quantizzazione, trasposizione e velocity.
 - **Playlist** su 500 tracce con clip di pattern, audio e automazione, ripetizioni e mute.
 - **Mixer** con master e 125 insert, 10 slot effetto per insert, mandate, mute, solo, fase e
-  scambio L/R, con 22 plugin nativi (8 generatori, 14 effetti).
+  scambio L/R, con 23 plugin nativi (9 generatori, 14 effetti).
 - **Automazioni** su volume, pan, pitch, tempo, parametri di canale ed effetti, con curve a tensione.
 - **Transport** in modalità Song o Pattern, con swing globale.
 - **Render** offline in WAV (16 o 24 bit intero, 32 bit float), con normalizzazione e stem per insert.
 - **Formati**: progetti nativi `.mfc` (JSON), import ed export `.flp`, import ed export MIDI (`.mid`).
 - **Undo/redo** su ogni modifica, condiviso da GUI, CLI e server MCP.
 - **CLI** `mixfonocraft` per convertire, ispezionare e renderizzare progetti, con un brano dimostrativo.
+- **Nova**, synth sottrattivo polifonico: due oscillatori con unison fino a 8 voci, sub e rumore,
+  filtro 12/24 dB con inviluppo, due LFO, modalità mono/legato con glide e 16 preset di fabbrica
+  (lead, bassi, pad, pluck, keys, FX).
 - **Plugin VST3 e CLAP**: scansione delle cartelle standard, strumenti ed effetti caricati
   nell'app, interfaccia originale del plugin in una finestra nativa (macOS e Windows), editor
   generico dei parametri, stato salvato nel progetto.
@@ -193,6 +196,18 @@ Scorciatoie, in stile FL Studio:
 | `Ctrl+R` | Registra le note live nel pattern |
 | `Z`…`M`, `Q`…`P` | Tastiera del computer come pianoforte (due ottave, layout FL) |
 | `Shift+↑/↓` | Ottava della tastiera del computer |
+
+### Synth Nova
+
+Nel Browser, sezione **Strumenti**, un clic su **Nova** aggiunge un canale con il synth. Nell'editor
+del plugin il menu **Preset…** carica uno dei 16 suoni di fabbrica, poi ogni controllo è modificabile:
+oscillatori, sub e rumore, filtro, inviluppi, LFO e modalità di voce. Per ascoltare tutti i preset:
+
+```sh
+cargo run -p mfc-plugins --release --example nova_presets -- nova.wav
+```
+
+Dal server MCP: `channel_add` con `"plugin": "mfc.nova"` e `"preset": "Acid Bass"`.
 
 ### Plugin VST3 e CLAP
 

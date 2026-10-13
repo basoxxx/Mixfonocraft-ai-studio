@@ -11,6 +11,7 @@ const ALL_IDS: &[&str] = &[
     ids::KICK,
     ids::DRUMSYNTH,
     ids::SUPERSAW,
+    ids::NOVA,
     ids::SILENT,
     ids::EQ,
     ids::COMPRESSOR,

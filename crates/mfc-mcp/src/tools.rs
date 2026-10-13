@@ -115,9 +115,28 @@ fn plugin_instance(
     params: Option<BTreeMap<String, f32>>,
     sample: Option<String>,
 ) -> Result<PluginInstance, String> {
+    plugin_instance_with_preset(kind, None, params, sample)
+}
+
+/// Come [`plugin_instance`], partendo da un preset di fabbrica (vedi plugin_list).
+fn plugin_instance_with_preset(
+    kind: &str,
+    preset: Option<&str>,
+    params: Option<BTreeMap<String, f32>>,
+    sample: Option<String>,
+) -> Result<PluginInstance, String> {
     let mut inst =
         mfc_plugins::default_instance(kind).ok_or_else(|| format!("plugin sconosciuto: {kind} (vedi plugin_list)"))?;
     let desc = mfc_plugins::descriptor(kind).unwrap();
+    if let Some(name) = preset {
+        let p = mfc_plugins::presets(kind)
+            .iter()
+            .find(|p| p.name.eq_ignore_ascii_case(name))
+            .ok_or_else(|| format!("{kind}: preset sconosciuto '{name}' (vedi plugin_list)"))?;
+        for (k, v) in mfc_plugins::preset_values(desc, p) {
+            inst.params.insert(k.to_string(), v);
+        }
+    }
     for (k, v) in params.unwrap_or_default() {
         let p = desc
             .param(&k)
@@ -218,14 +237,16 @@ struct PluginList {
 #[derive(Deserialize, JsonSchema)]
 struct ChannelAdd {
     name: String,
-    /// Id plugin generatore (es. "mfc.3xosc", "mfc.kick", "mfc.sampler"). Vedi plugin_list.
+    /// Id plugin generatore (es. "mfc.nova", "mfc.3xosc", "mfc.kick", "mfc.sampler"). Vedi plugin_list.
     plugin: String,
     /// Insert del mixer di destinazione (0 = master).
     insert: Option<u16>,
     /// File WAV per sampler/audio clip.
     sample_path: Option<String>,
-    /// Parametri del plugin (valori reali).
+    /// Parametri del plugin (valori reali); applicati dopo l'eventuale preset.
     params: Option<BTreeMap<String, f32>>,
+    /// Preset di fabbrica di partenza (es. "Acid Bass" per "mfc.nova"). Vedi plugin_list.
+    preset: Option<String>,
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -641,13 +662,14 @@ pub fn all() -> Vec<Tool> {
                             if !p.choices.is_empty() { v["choices"] = json!(p.choices); }
                             v
                         }).collect::<Vec<_>>(),
+                        "presets": mfc_plugins::presets(d.id).iter().map(|p| json!({"name": p.name, "category": p.category})).collect::<Vec<_>>(),
                     })
                 })
                 .collect();
             Ok(json!({"plugins": list}))
         }),
         tool!("channel_add", "Aggiunge un canale al Channel Rack con un generatore.", ChannelAdd, |s, a| {
-            let inst = plugin_instance(&a.plugin, a.params, a.sample_path)?;
+            let inst = plugin_instance_with_preset(&a.plugin, a.preset.as_deref(), a.params, a.sample_path)?;
             let desc = mfc_plugins::descriptor(&a.plugin).unwrap();
             if desc.role != mfc_plugins::PluginRole::Generator {
                 return Err(format!("{} è un effetto: usare mixer_add_effect", a.plugin));
