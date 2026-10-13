@@ -8,6 +8,7 @@ pub mod effects;
 pub mod external;
 pub mod generators;
 pub mod sample;
+pub mod sync;
 
 pub use api::*;
 pub use external::{external_host, set_external_host, ExternalHost};
@@ -26,6 +27,9 @@ pub mod ids {
     pub const DRUMSYNTH: &str = "mfc.drumsynth";
     pub const SUPERSAW: &str = "mfc.supersaw";
     pub const NOVA: &str = "mfc.nova";
+    pub const FUSION: &str = "mfc.fusion";
+    pub const PRISM: &str = "mfc.prism";
+    pub const DRUMKIT: &str = "mfc.drumkit";
     pub const SILENT: &str = "mfc.silent";
     // Effetti
     pub const EQ: &str = "mfc.eq";
@@ -58,6 +62,9 @@ pub fn descriptor(id: &str) -> Option<&'static PluginDescriptor> {
 pub fn presets(id: &str) -> &'static [Preset] {
     match id {
         ids::NOVA => generators::nova::PRESETS,
+        ids::FUSION => generators::fusion::PRESETS,
+        ids::PRISM => generators::prism::PRESETS,
+        ids::DRUMKIT => generators::drumkit::PRESETS,
         _ => &[],
     }
 }
@@ -130,6 +137,9 @@ static REGISTRY: &[&PluginDescriptor] = &[
     &generators::drumsynth::DESCRIPTOR,
     &generators::supersaw::DESCRIPTOR,
     &generators::nova::DESCRIPTOR,
+    &generators::fusion::DESCRIPTOR,
+    &generators::prism::DESCRIPTOR,
+    &generators::drumkit::DESCRIPTOR,
     &generators::silent::DESCRIPTOR,
     &effects::eq::DESCRIPTOR,
     &effects::compressor::DESCRIPTOR,

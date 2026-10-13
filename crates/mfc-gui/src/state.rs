@@ -76,10 +76,16 @@ pub struct Studio {
     pub host: Arc<mfc_host::Host>,
     /// Finestre aperte con l'interfaccia originale dei plugin, per `instance_id`.
     pub plugin_windows: HashMap<String, PluginWindow>,
+    /// Registrazione audio dall'ingresso (vedi `audio_rec.rs`).
+    pub audio_rec: crate::audio_rec::AudioRec,
     /// Ingresso live: tastiera del computer e MIDI.
     pub live: LiveInput,
     /// Registrazione delle note live nel pattern corrente (durante la riproduzione).
     pub recording: bool,
+    /// Registrazione delle automazioni dai controlli (vedi [`crate::automation_rec`]).
+    pub auto_rec: crate::automation_rec::AutoRecState,
+    /// Preferenze dell'interfaccia (tema, pannelli, cartelle campioni) e browser dei campioni.
+    pub ui: crate::ui_settings::UiState,
     /// Backend attivo; `None` solo durante il riavvio, per rilasciare il dispositivo.
     _backend: Option<Backend>,
 }
@@ -114,8 +120,11 @@ impl Studio {
             },
             host,
             plugin_windows: HashMap::new(),
+            audio_rec: Default::default(),
             live: LiveInput::new(handle.clone()),
             recording: false,
+            auto_rec: Default::default(),
+            ui: Default::default(),
             engine: handle,
             audible,
             audio_config,
@@ -172,6 +181,7 @@ impl Studio {
             Ok(o) => {
                 self.dirty = true;
                 self.after_change();
+                self.auto_rec_observe(&cmd);
                 Some(o)
             }
             Err(e) => {
@@ -223,6 +233,7 @@ impl Studio {
     pub fn tick_plugins(&mut self) {
         self.host.idle();
         self.plugin_windows.retain(|_, w| w.poll());
+        self.poll_plugin_param_changes();
         let errors = self.host.take_errors();
         if !errors.is_empty() {
             self.status = format!("Plugin: {}", errors.join("; "));
@@ -266,6 +277,10 @@ impl Studio {
             self.engine.pause();
         } else {
             self.engine.play();
+            // Record già armato: una nuova ripresa audio parte con la riproduzione.
+            if self.recording && !self.audio_rec.is_active() {
+                self.start_audio_take();
+            }
         }
     }
 
@@ -284,6 +299,7 @@ impl Studio {
             if !self.engine.shared.is_playing() {
                 self.engine.play();
             }
+            self.start_audio_take();
         }
     }
 
@@ -296,6 +312,8 @@ impl Studio {
 
     /// Chiude le note ancora tenute e le scrive nel pattern.
     fn finish_recording(&mut self) {
+        self.finish_audio_take();
+        self.finish_automation_recording();
         let Some((pat, len, snap)) = self.record_target() else {
             return;
         };
@@ -406,6 +424,8 @@ impl Studio {
         self.sync_plugin_states();
         let txt = self.project.to_json().map_err(|e| e.to_string())?;
         std::fs::write(path, txt).map_err(|e| e.to_string())?;
+        // HOOK autosave: il salvataggio normale rende superflua la copia automatica.
+        crate::autosave::discard_for_title(&self.project.info.title);
         self.path = Some(path.to_path_buf());
         self.dirty = false;
         self.status = format!("Salvato {}", path.display());

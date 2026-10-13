@@ -29,7 +29,7 @@ affiliato né approvato da Image-Line; FL Studio è un marchio dei rispettivi ti
 - **Step sequencer** a 1/16 e **piano roll** con quantizzazione, trasposizione e velocity.
 - **Playlist** su 500 tracce con clip di pattern, audio e automazione, ripetizioni e mute.
 - **Mixer** con master e 125 insert, 10 slot effetto per insert, mandate, mute, solo, fase e
-  scambio L/R, con 23 plugin nativi (9 generatori, 14 effetti).
+  scambio L/R, con 26 plugin nativi (12 generatori, 14 effetti).
 - **Automazioni** su volume, pan, pitch, tempo, parametri di canale ed effetti, con curve a tensione.
 - **Transport** in modalità Song o Pattern, con swing globale.
 - **Render** offline in WAV (16 o 24 bit intero, 32 bit float), con normalizzazione e stem per insert.
@@ -39,6 +39,10 @@ affiliato né approvato da Image-Line; FL Studio è un marchio dei rispettivi ti
 - **Nova**, synth sottrattivo polifonico: due oscillatori con unison fino a 8 voci, sub e rumore,
   filtro 12/24 dB con inviluppo, due LFO, modalità mono/legato con glide e 16 preset di fabbrica
   (lead, bassi, pad, pluck, keys, FX).
+- **Fusion**, synth FM a 4 operatori con 8 algoritmi, ADSR e velocity per operatore, feedback,
+  filtro e vibrato; **Prism**, synth wavetable con 8 tabelle morphabili band-limited, unison,
+  posizione modulata da inviluppo e LFO; **Drumkit**, batteria sintetica su mappa General MIDI con
+  kit 808, 909, Acoustic, Lo-Fi, Electro e Trap e choke degli hi-hat. Tutti con preset di fabbrica.
 - **Plugin VST3 e CLAP**: scansione delle cartelle standard, strumenti ed effetti caricati
   nell'app, interfaccia originale del plugin in una finestra nativa (macOS e Windows), editor
   generico dei parametri, stato salvato nel progetto.
@@ -46,6 +50,20 @@ affiliato né approvato da Image-Line; FL Studio è un marchio dei rispettivi ti
   registrazione delle note nel pattern durante la riproduzione.
 - **Impostazioni audio**: dispositivo di uscita, frequenza di campionamento, buffer e carico CPU.
 - **Dialoghi file nativi** e **drag & drop** di progetti, MIDI, campioni WAV e plugin.
+- **Registrazione**: note da tastiera e MIDI nel pattern, audio da microfono o strumento in
+  Playlist (Audio Clip), e **automazioni** dai movimenti delle manopole durante la riproduzione,
+  comprese quelle fatte nell'interfaccia originale dei plugin VST3/CLAP.
+- **Tempo sync**: LFO di Nova e degli effetti, Delay, Chorus, Flanger, Phaser e Filter seguono il
+  tempo del progetto (da 4 battute a 1/32, puntati e terzine).
+- **Browser dei campioni** con anteprima e trascinamento su Channel Rack e Playlist.
+- **Interfaccia**: tema scuro, chiaro o di sistema, pannelli ridimensionabili (F8 nasconde il
+  browser), manopole logaritmiche per frequenze e tempi, anteprime di inviluppi, forme d'onda, LFO e
+  curva del filtro nell'editor dei synth.
+- **Plugin in un processo separato** (opzione nelle impostazioni audio): se un plugin va in crash
+  l'app resta aperta e il plugin si può riavviare con il suo stato.
+- **Autosalvataggio** ogni 2 minuti con recupero dopo un'uscita anomala.
+- **Aggiornamenti automatici**: l'app controlla le nuove versioni su GitHub (una volta al giorno,
+  disattivabile dal menu Aiuto), scarica e installa l'aggiornamento e si riavvia.
 - **Server MCP** con 47 tool per creare progetti, pattern, mix e render da un agente AI.
 
 ## Struttura del workspace
@@ -209,6 +227,13 @@ cargo run -p mfc-plugins --release --example nova_presets -- nova.wav
 
 Dal server MCP: `channel_add` con `"plugin": "mfc.nova"` e `"preset": "Acid Bass"`.
 
+Allo stesso modo si aggiungono **Fusion** (`mfc.fusion`), **Prism** (`mfc.prism`) e **Drumkit**
+(`mfc.drumkit`). Per ascoltarne tutti i preset (scrive `fusion.wav`, `prism.wav` e `drumkit.wav`):
+
+```sh
+cargo run -p mfc-plugins --release --example instruments_demo -- .
+```
+
 ### Plugin VST3 e CLAP
 
 Nel Browser, sezione **Plugin VST3 / CLAP**, premere **Scansiona** per cercare i plugin nelle
@@ -270,12 +295,25 @@ memoria, ne verificano struttura e render (durata, livello, dissolvenza), fanno 
 ## Limiti attuali
 
 - Plugin VST3/CLAP: su Linux l'interfaccia originale non è disponibile (si usa l'editor generico);
-  i plugin VST2 e AU non sono supportati; i plugin esterni non vengono esportati nel `.flp`.
-- Le modifiche ai parametri fatte nell'interfaccia originale del plugin vengono salvate nello stato
-  del plugin, ma non generano automazioni.
+  i plugin VST2 e AU non sono supportati.
+- Nel `.flp` i plugin VST3/CLAP vengono esportati come "Fruity Wrapper" con nome, percorso, id e
+  stato salvato; reimportandoli si riottengono plugin VST3/CLAP con lo stesso stato. È
+  un'esportazione best-effort: l'ordine del class id VST3, il formato dello stato atteso da FL e la
+  struttura usata da FL per i CLAP non sono documentati, quindi in FL Studio il plugin potrebbe
+  risultare mancante o aprirsi senza il suo preset.
+- Le app non sono firmate: al primo avvio macOS può chiedere di aprirle da Impostazioni di
+  Sistema ▸ Privacy e sicurezza, e Windows SmartScreen può mostrare un avviso.
+- I plugin in un processo separato aggiungono un blocco di latenza e non registrano automazioni
+  dalla loro interfaccia originale.
 - L'esportazione `.flp` non è stata verificata con FL Studio reale. I test coprono il round-trip
   interno e la struttura del file.
-- Le clip di automazione non vengono esportate nel `.flp`.
+- Nel `.flp` vengono esportate le clip di automazione di volume, pan e pitch dei canali, volume e
+  pan degli insert del mixer, volume master e tempo, con i loro punti e la posizione in Playlist.
+  Le automazioni dei parametri dei plugin e del mix degli slot vengono saltate con un avviso. Il
+  collegamento tra la clip e il parametro segue una convenzione non documentata da FL: i file
+  esportati si reimportano correttamente in Mixfonocraft, ma in FL Studio la clip potrebbe non
+  risultare collegata. Le clip di automazione dei file creati con FL Studio vengono importate solo
+  quando il collegamento è riconoscibile; altrimenti restano canali di automazione vuoti.
 - I plugin FL sconosciuti vengono conservati come dati opachi e riesportati senza modifiche, ma
   non suonano.
 - I plugin nativi senza equivalente in FL Studio (drum synth, supersaw) diventano canali sampler

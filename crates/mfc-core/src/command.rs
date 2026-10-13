@@ -298,6 +298,24 @@ pub enum Command {
     RemoveAutomation {
         automation: AutomationId,
     },
+    /// Automazione registrata dai controlli durante la riproduzione: crea la clip per
+    /// `target` (piazzandola in Playlist all'inizio della registrazione) oppure estende la
+    /// clip esistente dello stesso bersaglio che copre l'intervallo, sostituendone i punti
+    /// tra il primo e l'ultimo punto registrato. Vedi [`crate::automation_rec`].
+    RecordAutomation {
+        target: AutomationTarget,
+        /// Nome della clip se va creata (default: derivato dal bersaglio).
+        #[serde(default)]
+        name: Option<String>,
+        /// Range reale su cui sono normalizzati i valori dei punti.
+        min: f32,
+        max: f32,
+        /// Punti in tick ASSOLUTI del brano.
+        points: Vec<AutomationPoint>,
+        /// Traccia per una clip nuova (default: prima traccia libera).
+        #[serde(default)]
+        track: Option<u16>,
+    },
 
     /// Più comandi atomici (un solo passo di undo).
     Batch {
@@ -941,6 +959,17 @@ impl Command {
                 p.playlist
                     .clips
                     .retain(|c| c.source != ClipSource::Automation(*automation));
+            }
+            RecordAutomation {
+                target,
+                name,
+                min,
+                max,
+                points,
+                track,
+            } => {
+                validate_points(points)?;
+                return crate::automation_rec::apply_record(p, target, name.as_deref(), (*min, *max), points, *track);
             }
 
             Batch { commands } => {

@@ -140,6 +140,8 @@ pub struct ClapInstance {
     params: ParamTable,
     queue_tx: Sender<(u32, f64)>,
     queue_rx: Receiver<(u32, f64)>,
+    /// Cambi di parametro emessi dal plugin stesso (GUI originale), letti dal thread UI.
+    gui_edits: crate::ParamChangeLog,
     /// `true` dopo il primo `start_processing` riuscito (dal thread audio).
     started: AtomicBool,
     reset_pending: AtomicBool,
@@ -198,6 +200,7 @@ impl ClapInstance {
             params,
             queue_tx,
             queue_rx,
+            gui_edits: crate::ParamChangeLog::default(),
             started: AtomicBool::new(false),
             reset_pending: AtomicBool::new(false),
             latency: AtomicU32::new(0),
@@ -355,7 +358,13 @@ impl ClapInstance {
         for ev in out {
             if let Some(p) = ev.as_event::<ParamValueEvent>() {
                 if let Some(slot) = p.param_id().and_then(|id| self.params.slot(id.get())) {
-                    slot.set(slot.to_normalized(p.value()));
+                    let n = slot.to_normalized(p.value());
+                    // Un valore uguale a quello noto è l'eco di un cambio dell'host: non è
+                    // una modifica dell'utente nella GUI del plugin.
+                    if (n - slot.get()).abs() > 1e-9 {
+                        self.gui_edits.push(slot.id, n);
+                    }
+                    slot.set(n);
                 }
             }
         }
@@ -894,6 +903,10 @@ impl ExternalInstance for ClapInstance {
 
     fn latency(&self) -> u32 {
         self.latency.load(Ordering::Relaxed)
+    }
+
+    fn take_param_changes(&self) -> Vec<(u32, f64)> {
+        self.gui_edits.drain()
     }
 }
 

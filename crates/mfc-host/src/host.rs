@@ -1,13 +1,20 @@
 //! Host: catalogo dei plugin, registro delle istanze vive, aggancio al motore.
+//!
+//! Modalità sandbox ([`Host::set_sandbox`], [`Host::new_sandboxed`]): le istanze create
+//! da quel momento (e le scansioni) avvengono in processi `mfc-plugin-host` separati;
+//! le istanze già vive restano dove sono. Un crash del processo viene riportato da
+//! [`Host::take_errors`] e si recupera con [`Host::restart`].
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use mfc_core::PluginInstance;
 use mfc_plugins::{Effect, ExternalHost, Generator};
 use parking_lot::{Mutex, RwLock};
 
+use crate::sandbox::{SandboxBackend, SandboxConfig};
 use crate::scan::{self, ScanReport};
 use crate::wrapper::{ExternalEffect, ExternalGenerator};
 use crate::{parse_kind, parse_param_key, ExternalInstance, FormatBackend, HostError, PluginInfo, DEFAULT_MAX_BLOCK};
@@ -20,6 +27,8 @@ struct Live {
     /// riapplicano solo quelli cambiati (undo/redo), senza sovrascrivere le modifiche
     /// fatte nel frattempo dall'interfaccia del plugin.
     applied: HashMap<u32, f32>,
+    /// Crash del processo già riportato in `errors`.
+    crash_reported: bool,
 }
 
 /// Applica i parametri del progetto diversi da quelli già applicati.
@@ -44,6 +53,9 @@ pub struct Host {
     /// Istanze rimosse dal progetto ma forse ancora usate dal motore: vengono distrutte
     /// da [`Host::idle`] sul thread UI, mai dal thread audio.
     graveyard: Mutex<Vec<Arc<dyn ExternalInstance>>>,
+    /// Configurazione della modalità sandbox (helper e tempi), anche se disattivata.
+    sandbox: RwLock<Option<SandboxConfig>>,
+    sandbox_on: AtomicBool,
 }
 
 impl Default for Host {
@@ -68,7 +80,74 @@ impl Host {
             catalog: RwLock::new(Vec::new()),
             errors: Mutex::new(Vec::new()),
             graveyard: Mutex::new(Vec::new()),
+            sandbox: RwLock::new(None),
+            sandbox_on: AtomicBool::new(false),
         }
+    }
+
+    /// Host con i backend VST3 e CLAP in modalità sandbox, con l'helper indicato.
+    pub fn new_sandboxed(helper: impl Into<PathBuf>) -> Self {
+        let host = Self::new();
+        host.set_sandbox_config(SandboxConfig::new(helper));
+        host.sandbox_on.store(true, Ordering::SeqCst);
+        host
+    }
+
+    /// Attiva/disattiva la modalità sandbox per le istanze create e le scansioni fatte da
+    /// ora in poi. All'attivazione, se non è configurato un helper esistente, lo cerca
+    /// accanto all'eseguibile ([`crate::sandbox::find_helper`]); errore se non lo trova
+    /// (la modalità resta invariata).
+    pub fn set_sandbox(&self, enabled: bool) -> Result<(), HostError> {
+        if enabled {
+            let mut cfg = self.sandbox.write();
+            let usable = cfg.as_ref().is_some_and(|c| c.helper.is_file());
+            if !usable {
+                let helper = crate::sandbox::find_helper().ok_or_else(|| {
+                    HostError::Unsupported(format!(
+                        "{} non trovato accanto all'eseguibile",
+                        crate::sandbox::HELPER_NAME
+                    ))
+                })?;
+                match cfg.as_mut() {
+                    Some(c) => c.helper = helper,
+                    None => *cfg = Some(SandboxConfig::new(helper)),
+                }
+            }
+        }
+        self.sandbox_on.store(enabled, Ordering::SeqCst);
+        Ok(())
+    }
+
+    /// `true` se le nuove istanze vengono create in un processo separato.
+    pub fn sandbox_enabled(&self) -> bool {
+        self.sandbox_on.load(Ordering::SeqCst)
+    }
+
+    /// Imposta helper e tempi della modalità sandbox (non la attiva).
+    pub fn set_sandbox_config(&self, config: SandboxConfig) {
+        *self.sandbox.write() = Some(config);
+    }
+
+    /// Configurazione sandbox corrente.
+    pub fn sandbox_config(&self) -> Option<SandboxConfig> {
+        self.sandbox.read().clone()
+    }
+
+    /// Configurazione da usare adesso (`None` = in-process).
+    fn active_sandbox(&self) -> Option<SandboxConfig> {
+        if self.sandbox_enabled() {
+            self.sandbox.read().clone()
+        } else {
+            None
+        }
+    }
+
+    /// Backend sandbox per i formati dei backend in-process.
+    fn sandbox_backends(&self, cfg: &SandboxConfig) -> Vec<SandboxBackend> {
+        self.backends
+            .iter()
+            .map(|b| SandboxBackend::new(b.format(), cfg.clone()))
+            .collect()
     }
 
     fn backend(&self, format: crate::PluginFormat) -> Option<&dyn FormatBackend> {
@@ -86,7 +165,11 @@ impl Host {
     /// Scansiona le cartelle e aggiorna il catalogo. Gli errori dei singoli bundle non
     /// interrompono la scansione e finiscono nel report.
     pub fn scan(&self, paths: &[PathBuf]) -> ScanReport {
-        let backends: Vec<&dyn FormatBackend> = self.backends.iter().map(|b| b.as_ref()).collect();
+        let sandboxed = self.active_sandbox().map(|c| self.sandbox_backends(&c));
+        let backends: Vec<&dyn FormatBackend> = match &sandboxed {
+            Some(v) => v.iter().map(|b| b as &dyn FormatBackend).collect(),
+            None => self.backends.iter().map(|b| b.as_ref()).collect(),
+        };
         let report = scan::scan_paths(&backends, paths);
         let mut cat = report.plugins.clone();
         cat.sort_by_key(|p| p.name.to_lowercase());
@@ -101,7 +184,10 @@ impl Host {
             .iter()
             .find(|b| b.is_candidate(path))
             .ok_or_else(|| HostError::Unsupported(format!("{}", path.display())))?;
-        let found = backend.scan(path)?;
+        let found = match self.active_sandbox() {
+            Some(cfg) => SandboxBackend::new(backend.format(), cfg).scan(path)?,
+            None => backend.scan(path)?,
+        };
         let mut cat = self.catalog.write();
         for p in &found {
             if !cat.iter().any(|c| c.kind == p.kind) {
@@ -156,7 +242,12 @@ impl Host {
         let backend = self
             .backend(parsed.format)
             .ok_or_else(|| HostError::Unsupported(parsed.format.label().into()))?;
-        let instance = backend.instantiate(&parsed, sample_rate, DEFAULT_MAX_BLOCK)?;
+        let instance = match self.active_sandbox() {
+            Some(cfg) => {
+                SandboxBackend::new(parsed.format, cfg).instantiate(&parsed, sample_rate, DEFAULT_MAX_BLOCK)?
+            }
+            None => backend.instantiate(&parsed, sample_rate, DEFAULT_MAX_BLOCK)?,
+        };
         if let Some(state) = &inst.opaque_state {
             if let Err(e) = instance.load_state(state) {
                 self.errors
@@ -173,6 +264,7 @@ impl Host {
                 instance: instance.clone(),
                 sample_rate,
                 applied,
+                crash_reported: false,
             },
         );
         Ok(instance)
@@ -196,6 +288,7 @@ impl Host {
     /// di quelle rimosse che il motore non usa più (così il plugin non viene mai
     /// distrutto dal thread audio).
     pub fn idle(&self) {
+        self.check_crashes();
         let live: Vec<Arc<dyn ExternalInstance>> = self.live.lock().values().map(|l| l.instance.clone()).collect();
         for i in &live {
             i.idle();
@@ -230,9 +323,75 @@ impl Host {
         live.into_iter().map(|(k, i)| (k, i.save_state())).collect()
     }
 
-    /// Errori accumulati (svuotati alla lettura).
+    /// Cambi di parametro fatti nelle interfacce originali delle istanze vive dall'ultima
+    /// chiamata: `(instance_id, id parametro, valore normalizzato)` (thread UI).
+    pub fn take_param_changes(&self) -> Vec<(String, u32, f64)> {
+        let live: Vec<(String, Arc<dyn ExternalInstance>)> = self
+            .live
+            .lock()
+            .iter()
+            .map(|(k, l)| (k.clone(), l.instance.clone()))
+            .collect();
+        let mut out = Vec::new();
+        for (k, inst) in live {
+            for (id, v) in inst.take_param_changes() {
+                out.push((k.clone(), id, v));
+            }
+        }
+        out
+    }
+
+    /// Errori accumulati (svuotati alla lettura), compresi i crash dei processi sandbox.
     pub fn take_errors(&self) -> Vec<String> {
+        self.check_crashes();
         std::mem::take(&mut *self.errors.lock())
+    }
+
+    /// Registra (una volta) in `errors` le istanze il cui processo è terminato.
+    fn check_crashes(&self) {
+        let mut found = Vec::new();
+        for l in self.live.lock().values_mut() {
+            if l.instance.is_alive() {
+                l.crash_reported = false;
+            } else if !l.crash_reported {
+                l.crash_reported = true;
+                let mut msg = format!("Plugin {} si è chiuso in modo anomalo", l.instance.info().name);
+                if let Some(reason) = l.instance.crash_reason() {
+                    msg.push_str(&format!(" ({reason})"));
+                }
+                found.push(msg);
+            }
+        }
+        self.errors.lock().extend(found);
+    }
+
+    /// `Some(false)` se il processo dell'istanza è terminato; `None` se l'istanza non esiste.
+    pub fn is_alive(&self, instance_id: &str) -> Option<bool> {
+        self.instance(instance_id).map(|i| i.is_alive())
+    }
+
+    /// Id delle istanze il cui processo è terminato (da riavviare con [`Host::restart`]).
+    pub fn crashed_ids(&self) -> Vec<String> {
+        self.live
+            .lock()
+            .iter()
+            .filter(|(_, l)| !l.instance.is_alive())
+            .map(|(k, _)| k.clone())
+            .collect()
+    }
+
+    /// Ricrea il processo di un'istanza sandbox e ripristina l'ultimo stato noto (quello
+    /// alla creazione, l'ultimo salvato/caricato o l'istantanea periodica). La stessa
+    /// istanza (`Arc`) resta in uso dal motore: non serve ricompilare.
+    pub fn restart(&self, instance_id: &str) -> Result<(), HostError> {
+        let inst = self
+            .instance(instance_id)
+            .ok_or_else(|| HostError::NotFound(instance_id.to_string()))?;
+        inst.restart()?;
+        if let Some(l) = self.live.lock().get_mut(instance_id) {
+            l.crash_reported = false;
+        }
+        Ok(())
     }
 
     fn report(&self, inst: &PluginInstance, e: HostError) {

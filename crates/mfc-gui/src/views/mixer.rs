@@ -95,7 +95,7 @@ struct Strip {
 /// Colore di un insert: quello del primo canale che vi è instradato.
 fn insert_color(project: &Project, index: u16) -> Color32 {
     if index == MASTER {
-        return pal::ACCENT;
+        return pal::ACCENT();
     }
     project
         .channels
@@ -144,7 +144,7 @@ pub fn show(ui: &mut Ui, studio: &mut Studio) {
         "Mixer",
         &format!("{} insert visibili", visible.len()),
         |ui| {
-            if widgets::toggle(ui, show_all, "TUTTI", pal::BLUE, vec2(56.0, 22.0))
+            if widgets::toggle(ui, show_all, "TUTTI", pal::BLUE(), vec2(56.0, 22.0))
                 .on_hover_text("Mostra tutti i 125 insert")
                 .clicked()
             {
@@ -184,11 +184,11 @@ pub fn show(ui: &mut Ui, studio: &mut Studio) {
             se: 6,
             ..Default::default()
         },
-        pal::BG_RAISED,
+        pal::BG_RAISED(),
     );
     p.line_segment(
         [fx_rect.left_top(), fx_rect.left_bottom()],
-        Stroke::new(1.0, pal::BORDER),
+        Stroke::new(1.0, pal::BORDER()),
     );
     let mut right = ui.new_child(egui::UiBuilder::new().max_rect(fx_rect.shrink(10.0)));
     egui::ScrollArea::vertical()
@@ -206,15 +206,15 @@ fn strip_ui(ui: &mut Ui, studio: &mut Studio, s: &Strip, h: f32) {
     }
     let p = ui.painter().clone();
     let bg = if s.selected {
-        theme::mix(pal::BG_RAISED, s.color, 0.10)
+        theme::mix(pal::BG_RAISED(), s.color, 0.10)
     } else {
-        pal::BG_RAISED
+        pal::BG_RAISED()
     };
     p.rect_filled(rect, 5.0, bg);
     p.rect_stroke(
         rect,
         5.0,
-        Stroke::new(1.0, if s.selected { s.color } else { pal::BORDER }),
+        Stroke::new(1.0, if s.selected { s.color } else { pal::BORDER() }),
         StrokeKind::Inside,
     );
     // Intestazione: numero + nome + banda colore.
@@ -228,14 +228,14 @@ fn strip_ui(ui: &mut Ui, studio: &mut Studio, s: &Strip, h: f32) {
         Align2::CENTER_CENTER,
         label,
         theme::bold_font(10.0),
-        pal::TEXT_FAINT,
+        pal::TEXT_FAINT(),
     );
     p.with_clip_rect(rect.shrink(3.0)).text(
         pos2(rect.center().x, rect.top() + 25.0),
         Align2::CENTER_CENTER,
         &s.name,
         theme::bold_font(11.0),
-        if s.muted { pal::TEXT_FAINT } else { pal::TEXT },
+        if s.muted { pal::TEXT_FAINT() } else { pal::TEXT() },
     );
     p.rect_filled(
         Rect::from_min_size(pos2(rect.left() + 6.0, rect.top() + 35.0), vec2(w - 12.0, 3.0)),
@@ -249,7 +249,7 @@ fn strip_ui(ui: &mut Ui, studio: &mut Studio, s: &Strip, h: f32) {
             pos2(rect.left() + 6.0 + k as f32 * dot_w, rect.top() + 43.0),
             vec2(dot_w - 2.0, 4.0),
         );
-        p.rect_filled(r, 1.0, if *on { pal::GREEN } else { pal::BG_INSET });
+        p.rect_filled(r, 1.0, if *on { pal::GREEN() } else { pal::BG_INSET() });
     }
 
     let mut child = ui.new_child(
@@ -291,13 +291,13 @@ fn strip_ui(ui: &mut Ui, studio: &mut Studio, s: &Strip, h: f32) {
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 4.0;
         let bw = (w - 14.0) / 2.0 - 2.0;
-        if widgets::toggle(ui, s.muted, "M", pal::RED, vec2(bw, 20.0))
+        if widgets::toggle(ui, s.muted, "M", pal::RED(), vec2(bw, 20.0))
             .on_hover_text("Mute")
             .clicked()
         {
             studio.exec(insert_cmd(s.index, None, None, Some(!s.muted), None));
         }
-        if widgets::toggle(ui, s.solo, "S", pal::YELLOW, vec2(bw, 20.0))
+        if widgets::toggle(ui, s.solo, "S", pal::YELLOW(), vec2(bw, 20.0))
             .on_hover_text("Solo")
             .clicked()
         {
@@ -306,7 +306,7 @@ fn strip_ui(ui: &mut Ui, studio: &mut Studio, s: &Strip, h: f32) {
     });
     let sel = studio.selected_insert;
     if !s.selected {
-        let r = widgets::toggle(ui, s.routed_from_selected, "ROUTE", pal::ACCENT, vec2(w - 14.0, 20.0))
+        let r = widgets::toggle(ui, s.routed_from_selected, "ROUTE", pal::ACCENT(), vec2(w - 14.0, 20.0))
             .on_hover_text(format!("Instrada l'insert {sel} verso questo insert"));
         if r.clicked() {
             let gain = if s.routed_from_selected { None } else { Some(1.0) };
@@ -321,7 +321,7 @@ fn strip_ui(ui: &mut Ui, studio: &mut Studio, s: &Strip, h: f32) {
             ui,
             true,
             "SELEZ.",
-            theme::mix(pal::BG_WIDGET, s.color, 0.6),
+            theme::mix(pal::BG_WIDGET(), s.color, 0.6),
             vec2(w - 14.0, 20.0),
         );
     }
@@ -366,7 +366,7 @@ fn fader(ui: &mut Ui, studio: &mut Studio, s: &Strip, rect: Rect) {
         let y = y_of(val);
         p.line_segment(
             [pos2(cx - 9.0, y), pos2(cx - 5.0, y)],
-            Stroke::new(1.0, pal::TEXT_FAINT),
+            Stroke::new(1.0, pal::TEXT_FAINT()),
         );
         let t = if db == 0.0 {
             "0".to_string()
@@ -378,7 +378,7 @@ fn fader(ui: &mut Ui, studio: &mut Studio, s: &Strip, rect: Rect) {
             Align2::RIGHT_CENTER,
             t,
             FontId::proportional(8.5),
-            if db == 0.0 { pal::TEXT_DIM } else { pal::TEXT_FAINT },
+            if db == 0.0 { pal::TEXT_DIM() } else { pal::TEXT_FAINT() },
         );
     }
     // Binario.
@@ -386,9 +386,9 @@ fn fader(ui: &mut Ui, studio: &mut Studio, s: &Strip, rect: Rect) {
         pos2(cx, (track_top + track_bot) / 2.0),
         vec2(4.0, track_bot - track_top),
     );
-    p.rect_filled(track, 2.0, pal::BG_INSET);
+    p.rect_filled(track, 2.0, pal::BG_INSET());
     let fill = Rect::from_min_max(pos2(track.left(), y_of(v)), track.max);
-    p.rect_filled(fill, 2.0, theme::mix(s.color, pal::BG_INSET, 0.45));
+    p.rect_filled(fill, 2.0, theme::mix(s.color, pal::BG_INSET(), 0.45));
     // Cappuccio.
     let cap = Rect::from_center_size(pos2(cx, y_of(v)), vec2(26.0, 14.0));
     let hot = resp.hovered() || resp.dragged();
@@ -403,7 +403,7 @@ fn fader(ui: &mut Ui, studio: &mut Studio, s: &Strip, rect: Rect) {
         },
         Color32::from_rgb(0x34, 0x39, 0x3f),
     );
-    p.rect_stroke(cap, 3.0, Stroke::new(1.0, pal::BORDER), StrokeKind::Inside);
+    p.rect_stroke(cap, 3.0, Stroke::new(1.0, pal::BORDER()), StrokeKind::Inside);
     p.line_segment(
         [
             pos2(cap.left() + 4.0, cap.center().y),
@@ -427,7 +427,7 @@ fn fader(ui: &mut Ui, studio: &mut Studio, s: &Strip, rect: Rect) {
 fn pan_knob(ui: &mut Ui, studio: &mut Studio, s: &Strip) {
     let id = Id::new(("mixer_pan", s.index));
     let mut v = live(ui.ctx(), id, s.pan);
-    let r = widgets::knob_ex(ui, &mut v, -1.0, 1.0, 0.0, 28.0, true, pal::BLUE);
+    let r = widgets::knob_ex(ui, &mut v, -1.0, 1.0, 0.0, 28.0, true, pal::BLUE());
     if let Some(nv) = settle(ui.ctx(), id, &r, v, s.pan) {
         studio.exec(insert_cmd(s.index, None, Some(nv), None, None));
     }
@@ -463,13 +463,13 @@ fn detail_ui(ui: &mut Ui, studio: &mut Studio) {
             } else {
                 format!("INSERT {sel}")
             };
-            ui.label(RichText::new(num).font(theme::bold_font(9.5)).color(pal::TEXT_FAINT));
+            ui.label(RichText::new(num).font(theme::bold_font(9.5)).color(pal::TEXT_FAINT()));
             let name = if sel == MASTER {
                 "Master".to_string()
             } else {
                 ins.name.clone()
             };
-            ui.label(RichText::new(name).font(theme::bold_font(15.0)).color(pal::TEXT));
+            ui.label(RichText::new(name).font(theme::bold_font(15.0)).color(pal::TEXT()));
         });
     });
     ui.add_space(8.0);
@@ -488,7 +488,7 @@ fn detail_ui(ui: &mut Ui, studio: &mut Studio) {
             } else {
                 "Nessuna mandata"
             })
-            .color(pal::TEXT_FAINT),
+            .color(pal::TEXT_FAINT()),
         );
     }
     for r in &ins.routes {
@@ -510,10 +510,10 @@ fn detail_ui(ui: &mut Ui, studio: &mut Studio) {
                         r.target.to_string()
                     }
                 ))
-                .color(pal::TEXT),
+                .color(pal::TEXT()),
             );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if widgets::icon_button(ui, Icon::Close, false, pal::RED, 20.0, "Rimuovi mandata").clicked() {
+                if widgets::icon_button(ui, Icon::Close, false, pal::RED(), 20.0, "Rimuovi mandata").clicked() {
                     studio.exec(Command::SetRoute {
                         from: sel,
                         to: r.target,
@@ -545,18 +545,18 @@ fn fx_slot(ui: &mut Ui, studio: &mut Studio, sel: u16, slot: usize, ins: &MixerI
         rect,
         4.0,
         if fx.is_some() || hot {
-            pal::BG_WIDGET
+            pal::BG_WIDGET()
         } else {
-            pal::BG_PANEL
+            pal::BG_PANEL()
         },
     );
-    p.rect_stroke(rect, 4.0, Stroke::new(1.0, pal::BORDER), StrokeKind::Inside);
+    p.rect_stroke(rect, 4.0, Stroke::new(1.0, pal::BORDER()), StrokeKind::Inside);
     p.text(
         pos2(rect.left() + 10.0, rect.center().y),
         Align2::LEFT_CENTER,
         format!("{}", slot + 1),
         theme::mono(10.0),
-        pal::TEXT_FAINT,
+        pal::TEXT_FAINT(),
     );
     let mut row = ui.new_child(
         egui::UiBuilder::new()
@@ -567,7 +567,7 @@ fn fx_slot(ui: &mut Ui, studio: &mut Studio, sel: u16, slot: usize, ins: &MixerI
     ui.add_space(18.0);
     match fx {
         Some(fx) => {
-            if widgets::led(ui, fx.enabled, pal::GREEN, 16.0)
+            if widgets::led(ui, fx.enabled, pal::GREEN(), 16.0)
                 .on_hover_text("Attiva / bypass")
                 .clicked()
             {
@@ -579,17 +579,17 @@ fn fx_slot(ui: &mut Ui, studio: &mut Studio, sel: u16, slot: usize, ins: &MixerI
                 });
             }
             let name = plugin_label(&fx.plugin.kind, fx.plugin.foreign_name.as_deref());
-            let col = if fx.enabled { pal::TEXT } else { pal::TEXT_FAINT };
+            let col = if fx.enabled { pal::TEXT() } else { pal::TEXT_FAINT() };
             ui.label(RichText::new(name).font(theme::bold_font(11.5)).color(col));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.spacing_mut().item_spacing.x = 4.0;
-                if widgets::icon_button(ui, Icon::Close, false, pal::RED, 22.0, "Rimuovi effetto").clicked() {
+                if widgets::icon_button(ui, Icon::Close, false, pal::RED(), 22.0, "Rimuovi effetto").clicked() {
                     studio.exec(Command::RemoveEffect {
                         insert: sel,
                         slot: slot as u16,
                     });
                 }
-                if widgets::icon_button(ui, Icon::Plugin, false, pal::ACCENT, 22.0, "Apri l'editor").clicked() {
+                if widgets::icon_button(ui, Icon::Plugin, false, pal::ACCENT(), 22.0, "Apri l'editor").clicked() {
                     studio.plugin_editor = Some(PluginTarget::Effect {
                         insert: sel,
                         slot: slot as u16,
@@ -597,7 +597,7 @@ fn fx_slot(ui: &mut Ui, studio: &mut Studio, sel: u16, slot: usize, ins: &MixerI
                 }
                 let id = Id::new(("fx_mix", sel, slot));
                 let mut mix = live(ui.ctx(), id, fx.mix);
-                let r = widgets::knob_ex(ui, &mut mix, 0.0, 1.0, 1.0, 22.0, false, pal::ACCENT);
+                let r = widgets::knob_ex(ui, &mut mix, 0.0, 1.0, 1.0, 22.0, false, pal::ACCENT());
                 if let Some(nv) = settle(ui.ctx(), id, &r, mix, fx.mix) {
                     studio.exec(Command::SetEffect {
                         insert: sel,
@@ -625,9 +625,9 @@ fn fx_slot(ui: &mut Ui, studio: &mut Studio, sel: u16, slot: usize, ins: &MixerI
                 RichText::new(txt)
                     .size(11.5)
                     .color(if hot && slot == ins.effects.len() {
-                        pal::ACCENT
+                        pal::ACCENT()
                     } else {
-                        pal::TEXT_FAINT
+                        pal::TEXT_FAINT()
                     }),
             );
             if slot == ins.effects.len() {

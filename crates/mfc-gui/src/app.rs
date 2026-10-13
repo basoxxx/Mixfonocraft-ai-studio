@@ -2,8 +2,8 @@
 
 use std::path::{Path, PathBuf};
 
-use egui::{Align, Color32, Key, KeyboardShortcut, Layout, Modifiers, RichText, Sense, Stroke};
-use mfc_core::{ChannelKind, Command, Outcome, Project};
+use egui::{Align, Key, KeyboardShortcut, Layout, Modifiers, RichText, Sense, Stroke};
+use mfc_core::{Command, Project};
 
 use crate::state::{Studio, View};
 use crate::theme::{self, pal};
@@ -140,6 +140,10 @@ pub struct StudioApp {
     playlist: views::playlist::PlaylistView,
     dialog: Option<FileDialog>,
     audio_settings: views::settings::AudioSettings,
+    /// Autosalvataggio e recupero (vedi `autosave.rs`).
+    pub autosave: crate::autosave::Autosave,
+    /// Aggiornamenti automatici (inerte finché non si usa `Updater::load`).
+    pub updater: views::update_ui::Updater,
 }
 
 impl StudioApp {
@@ -150,6 +154,8 @@ impl StudioApp {
             playlist: Default::default(),
             dialog: None,
             audio_settings: Default::default(),
+            autosave: Default::default(),
+            updater: Default::default(),
         }
     }
 
@@ -158,44 +164,30 @@ impl StudioApp {
         if !theme::ensure(ui.ctx()) {
             return;
         }
+        crate::ui_settings::frame_start(ui.ctx(), &mut self.studio);
         self.shortcuts(ui.ctx());
         self.handle_dropped_files(ui.ctx());
         egui::Panel::top("transport")
             .exact_size(52.0)
             .frame(
                 egui::Frame::new()
-                    .fill(pal::BG_RAISED)
+                    .fill(pal::BG_RAISED())
                     .inner_margin(egui::Margin::symmetric(10, 0))
-                    .stroke(egui::Stroke::new(1.0, pal::BORDER)),
+                    .stroke(egui::Stroke::new(1.0, pal::BORDER())),
             )
             .show(ui, |ui| self.top_bar(ui));
         egui::Panel::bottom("status")
             .exact_size(24.0)
             .frame(
                 egui::Frame::new()
-                    .fill(pal::BG_RAISED)
+                    .fill(pal::BG_RAISED())
                     .inner_margin(egui::Margin::symmetric(10, 0))
-                    .stroke(egui::Stroke::new(1.0, pal::BORDER)),
+                    .stroke(egui::Stroke::new(1.0, pal::BORDER())),
             )
             .show(ui, |ui| self.status_bar(ui));
-        egui::Panel::left("browser")
-            .resizable(true)
-            .default_size(220.0)
-            .size_range(170.0..=360.0)
-            .frame(egui::Frame::new().fill(pal::BG_APP).inner_margin(egui::Margin {
-                left: 6,
-                right: 0,
-                top: 6,
-                bottom: 6,
-            }))
-            .show(ui, |ui| {
-                views::widgets::view_frame().show(ui, |ui| {
-                    ui.set_min_size(ui.available_size());
-                    views::browser::show(ui, &mut self.studio);
-                });
-            });
+        crate::ui_settings::browser_panel(ui, &mut self.studio);
         egui::CentralPanel::default()
-            .frame(egui::Frame::new().fill(pal::BG_APP).inner_margin(6))
+            .frame(egui::Frame::new().fill(pal::BG_APP()).inner_margin(6))
             .show(ui, |ui| {
                 views::widgets::view_frame().show(ui, |ui| {
                     ui.set_min_size(ui.available_size());
@@ -209,7 +201,10 @@ impl StudioApp {
             });
         views::plugin_editor::show(ui.ctx(), &mut self.studio);
         views::settings::show(ui.ctx(), &mut self.studio, &mut self.audio_settings);
+        views::update_ui::show(ui.ctx(), &mut self.studio, &mut self.updater);
         self.file_dialog(ui.ctx());
+        // HOOK autosave: salvataggio periodico e finestra di recupero.
+        self.autosave.tick(&mut self.studio, ui.ctx());
         drop_overlay(ui.ctx());
         if self.studio.engine.shared.is_playing() {
             ui.ctx().request_repaint();
@@ -315,11 +310,11 @@ impl StudioApp {
             ui.label(
                 RichText::new("MIXFONOCRAFT")
                     .font(theme::bold_font(12.5))
-                    .color(pal::TEXT),
+                    .color(pal::TEXT()),
             );
             ui.add_space(8.0);
 
-            ui.menu_button(RichText::new("File").color(pal::TEXT_DIM), |ui| {
+            ui.menu_button(RichText::new("File").color(pal::TEXT_DIM()), |ui| {
                 ui.set_min_width(240.0);
                 if ui.button("Nuovo progetto").clicked() {
                     self.studio.replace_project(Project::new("Untitled"), None);
@@ -353,7 +348,7 @@ impl StudioApp {
                     }
                 }
             });
-            ui.menu_button(RichText::new("Modifica").color(pal::TEXT_DIM), |ui| {
+            ui.menu_button(RichText::new("Modifica").color(pal::TEXT_DIM()), |ui| {
                 ui.set_min_width(200.0);
                 if ui
                     .add_enabled(
@@ -374,7 +369,7 @@ impl StudioApp {
                     self.studio.redo();
                 }
             });
-            ui.menu_button(RichText::new("Audio").color(pal::TEXT_DIM), |ui| {
+            ui.menu_button(RichText::new("Audio").color(pal::TEXT_DIM()), |ui| {
                 ui.set_min_width(200.0);
                 if ui.button("Impostazioni audio…").clicked() {
                     self.audio_settings.request_open(&self.studio);
@@ -388,7 +383,7 @@ impl StudioApp {
                 ui.label(
                     RichText::new(format!("Ottava {} (Shift+↑/↓) · Z–M e Q–P", self.studio.live.octave))
                         .small()
-                        .color(pal::TEXT_DIM),
+                        .color(pal::TEXT_DIM()),
                 );
                 ui.separator();
                 ui.menu_button("Ingresso MIDI", |ui| {
@@ -399,7 +394,7 @@ impl StudioApp {
                     }
                     let ports = crate::input::LiveInput::midi_ports();
                     if ports.is_empty() {
-                        ui.label(RichText::new("Nessun dispositivo MIDI").color(pal::TEXT_DIM));
+                        ui.label(RichText::new("Nessun dispositivo MIDI").color(pal::TEXT_DIM()));
                     }
                     for port in ports {
                         if ui.radio(current.as_deref() == Some(port.as_str()), &port).clicked() {
@@ -412,6 +407,12 @@ impl StudioApp {
                     }
                 });
             });
+            ui.menu_button(RichText::new("Vista").color(pal::TEXT_DIM()), |ui| {
+                crate::ui_settings::view_menu(ui, &mut self.studio);
+            });
+            ui.menu_button(RichText::new("Aiuto").color(pal::TEXT_DIM()), |ui| {
+                views::update_ui::help_menu(ui, &mut self.updater)
+            });
             toolbar_sep(ui, h);
 
             // Transport.
@@ -420,10 +421,10 @@ impl StudioApp {
             }
             let playing = self.studio.engine.shared.is_playing();
             let play_icon = if playing { Icon::Pause } else { Icon::Play };
-            if icon_button(ui, play_icon, playing, pal::GREEN, 32.0, "Play / Pausa (Spazio)").clicked() {
+            if icon_button(ui, play_icon, playing, pal::GREEN(), 32.0, "Play / Pausa (Spazio)").clicked() {
                 self.studio.toggle_play();
             }
-            if icon_button(ui, Icon::Stop, false, pal::TEXT, 32.0, "Stop").clicked() {
+            if icon_button(ui, Icon::Stop, false, pal::TEXT(), 32.0, "Stop").clicked() {
                 self.studio.stop();
             }
             let rec = self.studio.recording;
@@ -431,7 +432,7 @@ impl StudioApp {
                 ui,
                 Icon::Record,
                 rec,
-                pal::RED,
+                pal::RED(),
                 32.0,
                 "Registra nel pattern le note da tastiera/MIDI (Ctrl+R)",
             )
@@ -526,7 +527,7 @@ impl StudioApp {
                         });
                     }
                 });
-            if icon_button(ui, Icon::Plus, false, pal::ACCENT, 24.0, "Nuovo pattern").clicked() {
+            if icon_button(ui, Icon::Plus, false, pal::ACCENT(), 24.0, "Nuovo pattern").clicked() {
                 let n = self.studio.project.patterns.len() + 1;
                 if let Some(mfc_core::Outcome::Pattern(id)) = self.studio.exec(Command::AddPattern {
                     name: format!("Pattern {n}"),
@@ -547,7 +548,7 @@ impl StudioApp {
             egui::Align2::LEFT_CENTER,
             "MASTER",
             theme::bold_font(8.5),
-            pal::TEXT_FAINT,
+            pal::TEXT_FAINT(),
         );
         let meter_rect = egui::Rect::from_min_size(egui::pos2(mr.left(), mr.center().y - 2.0), egui::vec2(112.0, 12.0));
         views::widgets::paint_meter(ui, meter_rect, l, r);
@@ -558,15 +559,15 @@ impl StudioApp {
             (View::ChannelRack, Icon::Rack, "Channel Rack (F6)"),
             (View::Playlist, Icon::Playlist, "Playlist (F5)"),
         ] {
-            if icon_button(ui, icon, self.studio.view == v, pal::ACCENT, 32.0, tip).clicked() {
+            if icon_button(ui, icon, self.studio.view == v, pal::ACCENT(), 32.0, tip).clicked() {
                 self.studio.view = v;
             }
         }
         toolbar_sep(ui, h);
-        if icon_button(ui, Icon::Redo, false, pal::TEXT, 26.0, "Ripeti (Ctrl+Y)").clicked() {
+        if icon_button(ui, Icon::Redo, false, pal::TEXT(), 26.0, "Ripeti (Ctrl+Y)").clicked() {
             self.studio.redo();
         }
-        if icon_button(ui, Icon::Undo, false, pal::TEXT, 26.0, "Annulla (Ctrl+Z)").clicked() {
+        if icon_button(ui, Icon::Undo, false, pal::TEXT(), 26.0, "Annulla (Ctrl+Z)").clicked() {
             self.studio.undo();
         }
     }
@@ -574,7 +575,11 @@ impl StudioApp {
     fn status_bar(&mut self, ui: &mut egui::Ui) {
         ui.horizontal_centered(|ui| {
             let (dot, dot_resp) = ui.allocate_exact_size(egui::vec2(8.0, 8.0), Sense::click());
-            let c = if self.studio.audible { pal::GREEN } else { pal::YELLOW };
+            let c = if self.studio.audible {
+                pal::GREEN()
+            } else {
+                pal::YELLOW()
+            };
             ui.painter().circle_filled(dot.center(), 3.5, c);
             let tip = if self.studio.audible {
                 "Uscita audio attiva · clic per le impostazioni"
@@ -584,16 +589,16 @@ impl StudioApp {
             if dot_resp.on_hover_text(tip).clicked() {
                 self.audio_settings.request_open(&self.studio);
             }
-            ui.label(RichText::new(&self.studio.status).size(11.0).color(pal::TEXT_DIM));
+            ui.label(RichText::new(&self.studio.status).size(11.0).color(pal::TEXT_DIM()));
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 let p = &self.studio.project;
                 let dirty = if self.studio.dirty { " •" } else { "" };
                 ui.label(
                     RichText::new(format!("{}{dirty}", p.info.title))
                         .size(11.0)
-                        .color(pal::TEXT),
+                        .color(pal::TEXT()),
                 );
-                ui.label(RichText::new("·").color(pal::TEXT_FAINT));
+                ui.label(RichText::new("·").color(pal::TEXT_FAINT()));
                 ui.label(
                     RichText::new(format!(
                         "{} canali · {} pattern · {:.1} battute",
@@ -602,11 +607,11 @@ impl StudioApp {
                         p.song_length() as f64 / p.time.ticks_per_bar() as f64
                     ))
                     .size(11.0)
-                    .color(pal::TEXT_FAINT),
+                    .color(pal::TEXT_FAINT()),
                 );
-                ui.label(RichText::new("·").color(pal::TEXT_FAINT));
+                ui.label(RichText::new("·").color(pal::TEXT_FAINT()));
                 let cpu = self.studio.engine.shared.cpu_load();
-                let cpu_color = if cpu > 0.8 { pal::RED } else { pal::TEXT_FAINT };
+                let cpu_color = if cpu > 0.8 { pal::RED() } else { pal::TEXT_FAINT() };
                 ui.label(
                     RichText::new(format!("CPU {:.0}%", cpu * 100.0))
                         .size(11.0)
@@ -732,28 +737,7 @@ impl StudioApp {
 
     /// Aggiunge un canale Sampler con il campione indicato.
     fn add_sample_channel(&mut self, path: &Path) {
-        let name = path
-            .file_stem()
-            .map_or_else(|| "Campione".to_string(), |n| n.to_string_lossy().into_owned());
-        let Some(plugin) = mfc_plugins::default_instance(mfc_plugins::ids::SAMPLER) else {
-            self.studio.status = "Plugin sampler non disponibile".into();
-            return;
-        };
-        let Some(Outcome::Channel(channel)) = self.studio.exec(Command::AddChannel {
-            name: name.clone(),
-            kind: ChannelKind::Sampler,
-            plugin,
-            mixer_insert: None,
-        }) else {
-            return;
-        };
-        let sample = Command::SetChannelSample {
-            channel,
-            path: Some(path.display().to_string()),
-        };
-        if self.studio.exec(sample).is_some() {
-            self.studio.status = format!("Campione aggiunto: {name}");
-        }
+        views::samples::add_sample_channel(&mut self.studio, path);
     }
 
     fn file_dialog(&mut self, ctx: &egui::Context) {
@@ -796,7 +780,7 @@ fn drop_overlay(ctx: &egui::Context) {
         egui::Id::new("drop_overlay"),
     ));
     let screen = ctx.content_rect();
-    painter.rect_filled(screen, 0.0, Color32::from_rgba_unmultiplied(0x10, 0x12, 0x15, 205));
+    painter.rect_filled(screen, 0.0, pal::BG_APP().gamma_multiply(0.8));
     let r = screen.shrink(14.0);
     let outline = [
         r.left_top(),
@@ -806,14 +790,14 @@ fn drop_overlay(ctx: &egui::Context) {
         r.left_top(),
     ];
     let mut border = Vec::new();
-    egui::Shape::dashed_line_many(&outline, Stroke::new(2.0, pal::ACCENT), 12.0, 7.0, &mut border);
+    egui::Shape::dashed_line_many(&outline, Stroke::new(2.0, pal::ACCENT()), 12.0, 7.0, &mut border);
     painter.extend(border);
     painter.text(
         screen.center(),
         egui::Align2::CENTER_CENTER,
         "Rilascia per aprire",
         theme::bold_font(20.0),
-        pal::ACCENT,
+        pal::ACCENT(),
     );
 }
 
@@ -827,7 +811,7 @@ impl eframe::App for StudioApp {
 fn toolbar_sep(ui: &mut egui::Ui, h: f32) {
     let (r, _) = ui.allocate_exact_size(egui::vec2(9.0, h * 0.55), egui::Sense::hover());
     ui.painter()
-        .line_segment([r.center_top(), r.center_bottom()], egui::Stroke::new(1.0, pal::LINE));
+        .line_segment([r.center_top(), r.center_bottom()], egui::Stroke::new(1.0, pal::LINE()));
 }
 
 /// Marchio: quadrato arrotondato con barre arancioni (come l'icona dell'app).
@@ -839,7 +823,7 @@ fn paint_logo(p: &egui::Painter, r: egui::Rect) {
         let x = r.left() + w * (1.0 + i as f32 * 1.5);
         let bh = (r.height() - 8.0) * h;
         let br = egui::Rect::from_min_size(egui::pos2(x, r.bottom() - 4.0 - bh), egui::vec2(w, bh));
-        p.rect_filled(br, 1.5, theme::mix(pal::YELLOW, pal::ACCENT, 1.0 - h));
+        p.rect_filled(br, 1.5, theme::mix(pal::YELLOW(), pal::ACCENT(), 1.0 - h));
     }
 }
 

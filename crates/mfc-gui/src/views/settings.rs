@@ -5,7 +5,6 @@ use egui::RichText;
 
 use crate::state::{AudioConfig, Studio};
 use crate::theme::pal;
-#[cfg(feature = "realtime")]
 use crate::views::widgets::section_label;
 
 /// Dimensioni di buffer proposte (in campioni).
@@ -56,13 +55,76 @@ pub fn show(ctx: &egui::Context, studio: &mut Studio, st: &mut AudioSettings) {
         .collapsible(false)
         .resizable(false)
         .open(&mut open)
-        .show(ctx, |ui| body(ui, studio, st));
+        .show(ctx, |ui| {
+            body(ui, studio, st);
+            ui.separator();
+            recording_and_plugins(ui, studio);
+        });
     st.open = open;
+}
+
+/// Ingresso per la registrazione audio e modalità di esecuzione dei plugin esterni.
+fn recording_and_plugins(ui: &mut egui::Ui, studio: &mut Studio) {
+    section_label(ui, "Registrazione audio");
+    let devices = crate::audio_rec::AudioRec::devices();
+    ui.add_enabled_ui(!studio.audio_rec.is_active(), |ui| {
+        ui.checkbox(
+            &mut studio.audio_rec.enabled,
+            "Registra l'ingresso audio con il pulsante Record",
+        );
+        let current = studio
+            .audio_rec
+            .device
+            .clone()
+            .unwrap_or_else(|| "Ingresso predefinito".into());
+        egui::ComboBox::from_id_salt("audio_input")
+            .width(300.0)
+            .selected_text(current)
+            .show_ui(ui, |ui| {
+                if ui
+                    .selectable_label(studio.audio_rec.device.is_none(), "Ingresso predefinito")
+                    .clicked()
+                {
+                    studio.audio_rec.device = None;
+                }
+                for d in &devices {
+                    let sel = studio.audio_rec.device.as_deref() == Some(d.as_str());
+                    if ui.selectable_label(sel, d).clicked() {
+                        studio.audio_rec.device = Some(d.clone());
+                    }
+                }
+            });
+    });
+    if devices.is_empty() {
+        ui.label(
+            RichText::new("Nessun ingresso audio trovato")
+                .size(11.0)
+                .color(pal::TEXT_DIM()),
+        );
+    }
+    ui.add_space(6.0);
+
+    section_label(ui, "Plugin VST3 / CLAP");
+    let mut sandbox = studio.host.sandbox_enabled();
+    if ui
+        .checkbox(&mut sandbox, "Esegui i plugin in un processo separato")
+        .on_hover_text(
+            "Se un plugin va in crash l'app resta aperta. Aggiunge un blocco di latenza; vale per i plugin \
+             caricati da ora in poi.",
+        )
+        .changed()
+    {
+        studio.status = match studio.host.set_sandbox(sandbox) {
+            Ok(()) if sandbox => "Plugin in un processo separato (dai prossimi caricamenti)".into(),
+            Ok(()) => "Plugin nello stesso processo dell'app".into(),
+            Err(e) => format!("Modalità separata non disponibile: {e}"),
+        };
+    }
 }
 
 #[cfg(not(feature = "realtime"))]
 fn body(ui: &mut egui::Ui, _studio: &mut Studio, _st: &mut AudioSettings) {
-    ui.label(RichText::new("Audio non disponibile in questa build").color(pal::TEXT_DIM));
+    ui.label(RichText::new("Audio non disponibile in questa build").color(pal::TEXT_DIM()));
 }
 
 #[cfg(feature = "realtime")]
@@ -73,9 +135,9 @@ fn body(ui: &mut egui::Ui, studio: &mut Studio, st: &mut AudioSettings) {
     section_label(ui, "Stato");
     let sr = studio.engine.sample_rate() as u32;
     let (text, color) = if studio.audible {
-        (format!("Uscita attiva · {sr} Hz"), pal::GREEN)
+        (format!("Uscita attiva · {sr} Hz"), pal::GREEN())
     } else {
-        ("Nessuna scheda audio: uscita silenziosa".to_string(), pal::YELLOW)
+        ("Nessuna scheda audio: uscita silenziosa".to_string(), pal::YELLOW())
     };
     ui.label(RichText::new(text).color(color));
     ui.add_space(6.0);
@@ -144,7 +206,7 @@ fn body(ui: &mut egui::Ui, studio: &mut Studio, st: &mut AudioSettings) {
         ui.label(
             RichText::new(format!("Latenza di buffer ≈ {ms:.1} ms a {rate} Hz"))
                 .size(11.0)
-                .color(pal::TEXT_FAINT),
+                .color(pal::TEXT_FAINT()),
         );
     }
 
@@ -161,6 +223,6 @@ fn body(ui: &mut egui::Ui, studio: &mut Studio, st: &mut AudioSettings) {
     });
     if !studio.status.is_empty() {
         ui.add_space(6.0);
-        ui.label(RichText::new(&studio.status).size(11.0).color(pal::TEXT_DIM));
+        ui.label(RichText::new(&studio.status).size(11.0).color(pal::TEXT_DIM()));
     }
 }

@@ -4,6 +4,9 @@
 //! step sequencer, Piano Roll, Playlist, Mixer ed editor dei plugin.
 
 pub mod app;
+pub mod audio_rec;
+pub mod automation_rec;
+pub mod autosave;
 pub mod input;
 pub mod plugin_window;
 pub mod plugins;
@@ -11,6 +14,8 @@ pub mod plugins;
 pub mod snapshot;
 pub mod state;
 pub mod theme;
+pub mod ui_settings;
+pub mod update;
 pub mod views;
 
 pub use app::StudioApp;
@@ -36,10 +41,16 @@ pub fn run(project: mfc_core::Project, path: Option<std::path::PathBuf>) -> efra
         "Mixfonocraft AI Studio",
         options,
         Box::new(move |cc| {
-            theme::apply(&cc.egui_ctx);
             let mut studio = Studio::new(project);
             studio.path = path;
-            Ok(Box::new(StudioApp::new(studio)))
+            // Preferenze dell'interfaccia (tema, pannelli, campioni) da ui.json.
+            studio.ui = ui_settings::UiState::load();
+            theme::pal::set_light(studio.ui.settings.theme.is_light(cc.egui_ctx.system_theme()));
+            theme::apply(&cc.egui_ctx);
+            let mut app = StudioApp::new(studio);
+            app.autosave.start();
+            app.updater = views::update_ui::Updater::load();
+            Ok(Box::new(app))
         }),
     )
 }

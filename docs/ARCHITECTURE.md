@@ -198,7 +198,7 @@ Definito in `crates/mfc-plugins/src/api.rs`.
   nota radice del canale, glide e offset di campione per le audio clip avviate a metà.
 - **Effetto** (trait `Effect`): `set_sample_rate`, `set_param`, `reset`, `process` in-place,
   `latency`.
-- **Registro**: `mfc_plugins::registry()` elenca i 23 descrittori nativi (9 generatori e 14
+- **Registro**: `mfc_plugins::registry()` elenca i 26 descrittori nativi (12 generatori e 14
   effetti). `default_instance(id)` costruisce un'istanza con i default, `create_generator` e
   `create_effect` istanziano il DSP applicando i parametri.
 - **Plugin sconosciuti**: un canale con un plugin non nativo diventa un generatore silenzioso.

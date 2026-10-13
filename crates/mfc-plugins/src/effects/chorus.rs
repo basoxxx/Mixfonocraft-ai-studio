@@ -3,6 +3,7 @@
 use super::{apply_defaults, ensure_delay, frames, param_value, sr_ok, DEFAULT_SR, MAX_SR};
 use crate::api::{Effect, ParamDesc, PluginDescriptor, PluginRole};
 use crate::ids;
+use crate::sync::{lfo_rate, sanitize_bpm, DEFAULT_BPM, SYNC_CHOICES};
 use mfc_dsp::{flush_denormal, DelayLine, Lfo, Smoother};
 
 pub static DESCRIPTOR: PluginDescriptor = PluginDescriptor {
@@ -12,6 +13,7 @@ pub static DESCRIPTOR: PluginDescriptor = PluginDescriptor {
     description: "Chorus stereo con LFO sinusoidale, feedback e spread di fase.",
     params: &[
         ParamDesc::new("rate", "Rate", 0.05, 5.0, 0.8, "Hz"),
+        ParamDesc::choice("sync", "Sync", SYNC_CHOICES, 0),
         ParamDesc::new("depth", "Depth", 0.0, 10.0, 3.0, "ms"),
         ParamDesc::new("delay", "Delay", 5.0, 30.0, 12.0, "ms"),
         ParamDesc::new("feedback", "Feedback", 0.0, 0.9, 0.0, ""),
@@ -30,6 +32,10 @@ pub struct Chorus {
     lines: [DelayLine; 2],
     lfo: [Lfo; 2],
     rate: f32,
+    /// Divisione di sync (indice in [`SYNC_CHOICES`], 0 = Off).
+    sync: f32,
+    /// Tempo del progetto (BPM).
+    bpm: f32,
     depth_ms: f32,
     spread: f32,
     feedback: f32,
@@ -51,6 +57,8 @@ impl Chorus {
             sr: DEFAULT_SR,
             lines: [DelayLine::new(cap), DelayLine::new(cap)],
             lfo: [Lfo::new(DEFAULT_SR); 2],
+            sync: 0.0,
+            bpm: DEFAULT_BPM,
             rate: 0.8,
             depth_ms: 3.0,
             spread: 0.5,
@@ -61,6 +69,14 @@ impl Chorus {
         apply_defaults(&DESCRIPTOR, |n, v| s.set_param(n, v));
         s.set_sample_rate(DEFAULT_SR);
         s
+    }
+
+    /// Rate libero o derivato dal tempo (sync attivo).
+    fn apply_rate(&mut self) {
+        let hz = lfo_rate(self.rate, self.sync, self.bpm);
+        for l in &mut self.lfo {
+            l.set_rate(hz);
+        }
     }
 }
 
@@ -80,8 +96,8 @@ impl Effect for Chorus {
         }
         for l in &mut self.lfo {
             l.set_sample_rate(sample_rate);
-            l.set_rate(self.rate);
         }
+        self.apply_rate();
         self.delay_ms.set_sample_rate(sample_rate);
         self.mix.set_sample_rate(sample_rate);
         self.reset();
@@ -94,9 +110,11 @@ impl Effect for Chorus {
         match name {
             "rate" => {
                 self.rate = v;
-                for l in &mut self.lfo {
-                    l.set_rate(v);
-                }
+                self.apply_rate();
+            }
+            "sync" => {
+                self.sync = v;
+                self.apply_rate();
             }
             "depth" => self.depth_ms = v,
             "delay" => self.delay_ms.set_target(v),
@@ -105,6 +123,11 @@ impl Effect for Chorus {
             "spread" => self.spread = v,
             _ => {}
         }
+    }
+
+    fn set_tempo(&mut self, bpm: f32) {
+        self.bpm = sanitize_bpm(bpm);
+        self.apply_rate();
     }
 
     fn reset(&mut self) {

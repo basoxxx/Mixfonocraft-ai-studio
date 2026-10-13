@@ -72,14 +72,14 @@ fn source_color(project: &mfc_core::Project, src: &ClipSource) -> Color32 {
             .iter()
             .position(|p| p.id == *id)
             .map(|i| theme::item_color(project.patterns[i].color, i))
-            .unwrap_or(pal::ACCENT),
+            .unwrap_or(pal::ACCENT()),
         ClipSource::Audio(id) => project
             .channels
             .iter()
             .position(|c| c.id == *id)
             .map(|i| theme::item_color(project.channels[i].color, i))
-            .unwrap_or(pal::GREEN),
-        ClipSource::Automation(_) => pal::YELLOW,
+            .unwrap_or(pal::GREEN()),
+        ClipSource::Automation(_) => pal::YELLOW(),
     }
 }
 
@@ -106,14 +106,14 @@ impl PlaylistView {
                 ui.label(
                     RichText::new(format!("Click per piazzare: {pat_name}"))
                         .size(11.0)
-                        .color(pal::TEXT_DIM),
+                        .color(pal::TEXT_DIM()),
                 );
                 ui.add_space(8.0);
                 let r = widgets::toggle(
                     ui,
                     self.snap_beats,
                     if self.snap_beats { "SNAP BEAT" } else { "SNAP BAR" },
-                    pal::BLUE,
+                    pal::BLUE(),
                     vec2(78.0, 22.0),
                 );
                 if r.clicked() {
@@ -124,7 +124,11 @@ impl PlaylistView {
                         .logarithmic(true)
                         .show_value(false),
                 );
-                ui.label(RichText::new("ZOOM").font(theme::bold_font(9.5)).color(pal::TEXT_FAINT));
+                ui.label(
+                    RichText::new("ZOOM")
+                        .font(theme::bold_font(9.5))
+                        .color(pal::TEXT_FAINT()),
+                );
             },
         );
 
@@ -160,17 +164,21 @@ impl PlaylistView {
                 };
                 let bar = tb.ticks_per_bar();
 
+                // Campione trascinato dal browser: audio clip alla posizione (agganciata).
+                if let Some((path, at)) =
+                    crate::views::samples::drop_target(ui, resp.rect.intersect(clip_r), "Rilascia: audio clip")
+                {
+                    let tick = tick_at(at.x) / snap.max(1) * snap.max(1);
+                    crate::views::samples::add_audio_clip(studio, &path, track_at(at.y), tick);
+                }
+
                 // Sfondo: battute alternate, poi righe delle tracce.
                 let mut b = 0;
                 while b * bar < end {
                     let x0 = x_of((b * bar) as f64);
                     let x1 = x_of(((b + 1) * bar) as f64);
                     if x1 >= clip_r.left() && x0 <= clip_r.right() {
-                        let c = if (b / 4) % 2 == 0 {
-                            Color32::from_rgb(0x1c, 0x20, 0x25)
-                        } else {
-                            Color32::from_rgb(0x18, 0x1b, 0x20)
-                        };
+                        let c = if (b / 4) % 2 == 0 { pal::GRID_A() } else { pal::GRID_B() };
                         painter.rect_filled(
                             Rect::from_min_max(pos2(x0, o.y + RULER_H), pos2(x1, o.y + height)),
                             0.0,
@@ -178,14 +186,14 @@ impl PlaylistView {
                         );
                         painter.line_segment(
                             [pos2(x0, o.y + RULER_H), pos2(x0, o.y + height)],
-                            Stroke::new(1.0, Color32::from_rgb(0x2a, 0x2f, 0x35)),
+                            Stroke::new(1.0, pal::GRID_LINE()),
                         );
                         if self.zoom_x * tb.ticks_per_beat() as f32 > 10.0 {
                             for q in 1..tb.signature.numerator as u64 {
                                 let xb = x_of((b * bar + q * tb.ticks_per_beat()) as f64);
                                 painter.line_segment(
                                     [pos2(xb, o.y + RULER_H), pos2(xb, o.y + height)],
-                                    Stroke::new(1.0, Color32::from_rgb(0x21, 0x25, 0x2a)),
+                                    Stroke::new(1.0, theme::mix(pal::GRID_A(), pal::GRID_LINE(), 0.5)),
                                 );
                             }
                         }
@@ -194,10 +202,7 @@ impl PlaylistView {
                 }
                 for tr in 0..n_tracks as u16 {
                     let y = y_of(tr) + self.track_h;
-                    painter.line_segment(
-                        [pos2(o.x, y), pos2(o.x + width, y)],
-                        Stroke::new(1.0, Color32::from_rgb(0x12, 0x14, 0x17)),
-                    );
+                    painter.line_segment([pos2(o.x, y), pos2(o.x + width, y)], Stroke::new(1.0, pal::BG_INSET()));
                 }
 
                 // Clip.
@@ -226,11 +231,11 @@ impl PlaylistView {
                     let base = source_color(&studio.project, &c.source);
                     let muted = c.muted || studio.project.playlist.track_muted(c.track);
                     let col = if muted {
-                        theme::mix(base, pal::BG_PANEL, 0.7)
+                        theme::mix(base, pal::BG_PANEL(), 0.7)
                     } else {
                         base
                     };
-                    let body = theme::mix(col, Color32::BLACK, 0.62);
+                    let body = theme::mix(col, pal::BG_INSET(), 0.62);
                     painter.rect_filled(r, 4.0, body);
                     let head = Rect::from_min_size(r.min, vec2(r.width(), 14.0f32.min(r.height())));
                     painter.rect_filled(
@@ -328,7 +333,7 @@ impl PlaylistView {
                     let x = x_of(ph);
                     painter.line_segment(
                         [pos2(x, o.y + RULER_H), pos2(x, o.y + height)],
-                        Stroke::new(1.5, pal::ACCENT),
+                        Stroke::new(1.5, pal::ACCENT()),
                     );
                 }
 
@@ -345,27 +350,27 @@ impl PlaylistView {
                     let name = track
                         .map(|t| t.name.clone())
                         .unwrap_or_else(|| format!("Track {}", tr + 1));
-                    painter.rect_filled(header, 0.0, pal::BG_RAISED);
+                    painter.rect_filled(header, 0.0, pal::BG_RAISED());
                     painter.line_segment(
                         [header.left_bottom(), header.right_bottom()],
-                        Stroke::new(1.0, pal::BORDER),
+                        Stroke::new(1.0, pal::BORDER()),
                     );
                     let led = pos2(header.left() + 12.0, header.center().y);
                     painter.circle_filled(
                         led,
                         4.0,
                         if muted {
-                            Color32::from_rgb(0x3a, 0x40, 0x46)
+                            theme::mix(pal::BG_INSET(), pal::BG_HOVER(), 0.5)
                         } else {
-                            pal::GREEN
+                            pal::GREEN()
                         },
                     );
                     let tc = if muted {
-                        pal::TEXT_FAINT
+                        pal::TEXT_FAINT()
                     } else if used {
-                        pal::TEXT
+                        pal::TEXT()
                     } else {
-                        pal::TEXT_DIM
+                        pal::TEXT_DIM()
                     };
                     painter.with_clip_rect(header.shrink(2.0)).text(
                         pos2(header.left() + 24.0, header.center().y),
@@ -377,15 +382,15 @@ impl PlaylistView {
                 }
                 painter.line_segment(
                     [pos2(head_x + HEADER_W, o.y), pos2(head_x + HEADER_W, o.y + height)],
-                    Stroke::new(1.0, pal::BORDER),
+                    Stroke::new(1.0, pal::BORDER()),
                 );
 
                 // Righello (sticky in alto).
                 let ruler = Rect::from_min_max(pos2(o.x, ruler_y), pos2(o.x + width, ruler_y + RULER_H));
-                painter.rect_filled(ruler, 0.0, pal::BG_RAISED);
+                painter.rect_filled(ruler, 0.0, pal::BG_RAISED());
                 painter.line_segment(
                     [ruler.left_bottom(), ruler.right_bottom()],
-                    Stroke::new(1.0, pal::BORDER),
+                    Stroke::new(1.0, pal::BORDER()),
                 );
                 let label_every = if self.zoom_x * bar as f32 > 36.0 {
                     1
@@ -403,7 +408,7 @@ impl PlaylistView {
                                 pos2(x, ruler.bottom() - if b % 4 == 0 { 9.0 } else { 5.0 }),
                                 pos2(x, ruler.bottom()),
                             ],
-                            Stroke::new(1.0, pal::TEXT_FAINT),
+                            Stroke::new(1.0, pal::TEXT_FAINT()),
                         );
                         if b % label_every == 0 {
                             painter.text(
@@ -411,7 +416,7 @@ impl PlaylistView {
                                 Align2::LEFT_CENTER,
                                 b + 1,
                                 theme::bold_font(10.5),
-                                pal::TEXT_DIM,
+                                pal::TEXT_DIM(),
                             );
                         }
                     }
@@ -420,7 +425,7 @@ impl PlaylistView {
                 painter.rect_filled(
                     Rect::from_min_size(pos2(head_x, ruler_y), vec2(HEADER_W, RULER_H)),
                     0.0,
-                    pal::BG_RAISED,
+                    pal::BG_RAISED(),
                 );
                 if let Some(ph) = playhead {
                     let x = x_of(ph);
@@ -431,7 +436,7 @@ impl PlaylistView {
                                 pos2(x + 5.0, ruler.top() + 4.0),
                                 pos2(x, ruler.bottom() - 2.0),
                             ],
-                            pal::ACCENT,
+                            pal::ACCENT(),
                             Stroke::NONE,
                         ));
                     }

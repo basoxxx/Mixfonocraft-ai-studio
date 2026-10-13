@@ -902,6 +902,10 @@ impl ExternalInstance for Vst3Instance {
     fn latency(&self) -> u32 {
         self.latency.load(Ordering::Relaxed)
     }
+
+    fn take_param_changes(&self) -> Vec<(u32, f64)> {
+        self.shared.gui_edits.drain()
+    }
 }
 
 /// Dimensione corrente della vista (minimo 1×1, default 640×480).

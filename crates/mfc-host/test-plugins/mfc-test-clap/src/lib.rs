@@ -5,6 +5,7 @@
 //! - "MFC Test Gain": effetto stereo, uscita = ingresso · gain.
 //!
 //! Entrambi hanno il parametro id 0 "Gain" (0..1) e salvano come stato i byte del gain.
+//! Nel synth la nota 0 simula una modifica del gain dalla GUI del plugin (vedi [`GUI_EDIT_KEY`]).
 
 use std::ffi::CStr;
 use std::fmt::Write as _;
@@ -25,7 +26,7 @@ use clack_extensions::state::{PluginState, PluginStateImpl};
 use clack_plugin::entry::prelude::*;
 use clack_plugin::events::event_types::ParamValueEvent;
 use clack_plugin::events::spaces::CoreEventSpace;
-use clack_plugin::events::Match;
+use clack_plugin::events::{Match, Pckn};
 use clack_plugin::prelude::*;
 use clack_plugin::stream::{InputStream, OutputStream};
 use clack_plugin::utils::Cookie;
@@ -34,6 +35,9 @@ use clack_plugin::utils::Cookie;
 pub const SYNTH_ID: &str = "com.mixfonocraft.test.synth";
 /// Id del plugin effetto.
 pub const GAIN_ID: &str = "com.mixfonocraft.test.gain";
+/// Solo test: nel synth una nota con questo tasto non suona ma imposta il gain alla sua
+/// velocity e lo comunica all'host come evento di parametro in uscita, come farebbe la GUI.
+pub const GUI_EDIT_KEY: u16 = 0;
 
 // ---------------------------------------------------------------------------
 // Stato condiviso
@@ -224,7 +228,14 @@ impl<'a> PluginAudioProcessor<'a, Shared, MainThread<'a>> for SynthAudio<'a> {
             match ev.as_core_event() {
                 Some(CoreEventSpace::NoteOn(n)) => {
                     if let Match::Specific(k) = n.pckn().key {
-                        self.note = Some((k, n.velocity()));
+                        if k == GUI_EDIT_KEY {
+                            // Simula una modifica fatta dall'utente nella GUI del plugin.
+                            self.shared.set_gain(n.velocity());
+                            let ev = ParamValueEvent::new(0, ClapId::new(0), Pckn::match_all(), self.shared.gain());
+                            let _ = events.output.try_push(ev);
+                        } else {
+                            self.note = Some((k, n.velocity()));
+                        }
                     }
                 }
                 Some(CoreEventSpace::NoteOff(n)) => self.note_off(n.pckn().key),

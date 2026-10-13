@@ -42,14 +42,14 @@ fn item(ui: &mut Ui, mark: Mark, label: &str, sub: &str, selected: bool) -> Resp
     let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 24.0), Sense::click());
     let p = ui.painter();
     if selected {
-        p.rect_filled(rect, 4.0, theme::mix(pal::BG_RAISED, pal::ACCENT, 0.14));
+        p.rect_filled(rect, 4.0, theme::mix(pal::BG_RAISED(), pal::ACCENT(), 0.14));
         p.rect_filled(
             Rect::from_min_size(rect.left_top() + vec2(0.0, 4.0), vec2(3.0, rect.height() - 8.0)),
             1.5,
-            pal::ACCENT,
+            pal::ACCENT(),
         );
     } else if resp.hovered() {
-        p.rect_filled(rect, 4.0, pal::BG_RAISED);
+        p.rect_filled(rect, 4.0, pal::BG_RAISED());
     }
     let mx = rect.left() + 16.0;
     match mark {
@@ -68,11 +68,11 @@ fn item(ui: &mut Ui, mark: Mark, label: &str, sub: &str, selected: bool) -> Resp
         ),
     }
     let tc = if selected {
-        Color32::WHITE
+        pal::TEXT_STRONG()
     } else if resp.hovered() {
-        pal::TEXT
+        pal::TEXT()
     } else {
-        theme::mix(pal::TEXT, pal::TEXT_DIM, 0.4)
+        theme::mix(pal::TEXT(), pal::TEXT_DIM(), 0.4)
     };
     let t = p.text(
         pos2(rect.left() + 28.0, rect.center().y),
@@ -87,7 +87,7 @@ fn item(ui: &mut Ui, mark: Mark, label: &str, sub: &str, selected: bool) -> Resp
             Align2::RIGHT_CENTER,
             sub,
             FontId::proportional(10.0),
-            pal::TEXT_FAINT,
+            pal::TEXT_FAINT(),
         );
     }
     resp
@@ -104,7 +104,7 @@ fn section(ui: &mut Ui, title: &str, count: usize, default_open: bool) -> bool {
         ui.data_mut(|d| d.insert_temp(id, open));
     }
     let p = ui.painter();
-    let c = if resp.hovered() { pal::TEXT } else { pal::TEXT_DIM };
+    let c = if resp.hovered() { pal::TEXT() } else { pal::TEXT_DIM() };
     let a = pos2(rect.left() + 10.0, rect.center().y);
     let tri = if open {
         vec![a + vec2(-3.5, -2.0), a + vec2(3.5, -2.0), a + vec2(0.0, 2.5)]
@@ -121,13 +121,13 @@ fn section(ui: &mut Ui, title: &str, count: usize, default_open: bool) -> bool {
     );
     let badge = format!("{count}");
     let br = Rect::from_center_size(pos2(rect.right() - 16.0, rect.center().y), vec2(22.0, 15.0));
-    p.rect_filled(br, 7.5, pal::BG_INSET);
+    p.rect_filled(br, 7.5, pal::BG_INSET());
     p.text(
         br.center(),
         Align2::CENTER_CENTER,
         badge,
         FontId::proportional(9.5),
-        pal::TEXT_FAINT,
+        pal::TEXT_FAINT(),
     );
     open
 }
@@ -145,22 +145,36 @@ pub fn show(ui: &mut Ui, studio: &mut Studio) {
             sw: 0,
             se: 0,
         },
-        pal::BG_RAISED,
+        pal::BG_RAISED(),
     );
-    p.line_segment([rect.left_bottom(), rect.right_bottom()], Stroke::new(1.0, pal::BORDER));
+    p.line_segment(
+        [rect.left_bottom(), rect.right_bottom()],
+        Stroke::new(1.0, pal::BORDER()),
+    );
     widgets::paint_icon(
         p,
         Rect::from_center_size(pos2(rect.left() + 18.0, rect.center().y), vec2(15.0, 15.0)),
         Icon::Folder,
-        pal::ACCENT,
+        pal::ACCENT(),
     );
     p.text(
         pos2(rect.left() + 34.0, rect.center().y),
         Align2::LEFT_CENTER,
         "Browser",
         theme::bold_font(13.0),
-        pal::TEXT,
+        pal::TEXT(),
     );
+    let mut btn = ui.new_child(
+        egui::UiBuilder::new()
+            .max_rect(Rect::from_min_max(
+                rect.right_top() - vec2(30.0, 0.0),
+                rect.right_bottom(),
+            ))
+            .layout(egui::Layout::left_to_right(egui::Align::Center)),
+    );
+    if crate::views::samples::collapse_button(&mut btn, true).clicked() {
+        crate::ui_settings::toggle_browser(studio);
+    }
 
     egui::ScrollArea::vertical()
         .id_salt("browser_scroll")
@@ -186,6 +200,10 @@ pub fn show(ui: &mut Ui, studio: &mut Studio) {
                     let fx = registry().iter().filter(|d| d.role == PluginRole::Effect).count();
                     if section(ui, "Effetti", fx, false) {
                         effects(ui, studio);
+                    }
+                    let folders = studio.ui.settings.sample_folders.len();
+                    if section(ui, "Campioni", folders, true) {
+                        crate::views::samples::section(ui, studio);
                     }
                     let ext = studio.host.catalog().len();
                     if section(ui, "Plugin VST3 / CLAP", ext, ext > 0) {
@@ -279,7 +297,7 @@ fn channels(ui: &mut Ui, studio: &mut Studio) {
         })
         .collect();
     if items.is_empty() {
-        ui.label(RichText::new("   Nessun canale").color(pal::TEXT_FAINT));
+        ui.label(RichText::new("   Nessun canale").color(pal::TEXT_FAINT()));
     }
     let selected = studio.selected_channel;
     for (id, name, color, sub) in items {
@@ -294,7 +312,7 @@ fn generators(ui: &mut Ui, studio: &mut Studio) {
         .iter()
         .filter(|d| d.role == PluginRole::Generator && d.id != mfc_plugins::ids::SILENT)
     {
-        let resp = item(ui, Mark::Icon(Icon::Wave, pal::ACCENT), d.name, "", false)
+        let resp = item(ui, Mark::Icon(Icon::Wave, pal::ACCENT()), d.name, "", false)
             .on_hover_text(format!("{}\nClic: aggiunge un canale", d.description));
         if resp.clicked() {
             add_generator(studio, d.id);
@@ -305,7 +323,7 @@ fn generators(ui: &mut Ui, studio: &mut Studio) {
 fn effects(ui: &mut Ui, studio: &mut Studio) {
     let insert = studio.selected_insert;
     for d in registry().iter().filter(|d| d.role == PluginRole::Effect) {
-        let resp = item(ui, Mark::Icon(Icon::Plugin, pal::BLUE), d.name, "", false)
+        let resp = item(ui, Mark::Icon(Icon::Plugin, pal::BLUE()), d.name, "", false)
             .on_hover_text(format!("{}\nClic: aggiunge all'insert {insert}", d.description));
         if resp.clicked() {
             if let Some(plugin) = default_instance(d.id) {
@@ -370,19 +388,19 @@ fn external_plugins(ui: &mut Ui, studio: &mut Studio) {
         ui.label(
             RichText::new("o trascina un .vst3/.clap")
                 .size(10.5)
-                .color(pal::TEXT_FAINT),
+                .color(pal::TEXT_FAINT()),
         );
     });
     let insert = studio.selected_insert;
     for info in studio.host.catalog() {
         let (mark, hint) = if info.is_instrument {
             (
-                Mark::Icon(Icon::Wave, pal::ACCENT),
+                Mark::Icon(Icon::Wave, pal::ACCENT()),
                 "Clic: aggiunge un canale".to_string(),
             )
         } else {
             (
-                Mark::Icon(Icon::Plugin, pal::BLUE),
+                Mark::Icon(Icon::Plugin, pal::BLUE()),
                 format!("Clic: aggiunge all'insert {insert}"),
             )
         };
@@ -408,10 +426,10 @@ fn automations(ui: &mut Ui, studio: &mut Studio) {
         .map(|a| (a.id, a.name.clone()))
         .collect();
     if items.is_empty() {
-        ui.label(RichText::new("   Nessuna automazione").color(pal::TEXT_FAINT));
+        ui.label(RichText::new("   Nessuna automazione").color(pal::TEXT_FAINT()));
     }
     for (id, name) in items {
-        let resp = item(ui, Mark::Icon(Icon::Wave, pal::YELLOW), &name, "", false)
+        let resp = item(ui, Mark::Icon(Icon::Wave, pal::YELLOW()), &name, "", false)
             .on_hover_text("Clic: piazza in fondo alla Playlist");
         if resp.clicked() {
             let track = next_free_track(&studio.project);
