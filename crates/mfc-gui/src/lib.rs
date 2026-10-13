@@ -4,6 +4,7 @@
 //! step sequencer, Piano Roll, Playlist, Mixer ed editor dei plugin.
 
 pub mod app;
+pub mod autosave;
 pub mod input;
 pub mod plugin_window;
 pub mod plugins;
@@ -39,7 +40,9 @@ pub fn run(project: mfc_core::Project, path: Option<std::path::PathBuf>) -> efra
             theme::apply(&cc.egui_ctx);
             let mut studio = Studio::new(project);
             studio.path = path;
-            Ok(Box::new(StudioApp::new(studio)))
+            let mut app = StudioApp::new(studio);
+            app.autosave.start();
+            Ok(Box::new(app))
         }),
     )
 }

@@ -406,6 +406,8 @@ impl Studio {
         self.sync_plugin_states();
         let txt = self.project.to_json().map_err(|e| e.to_string())?;
         std::fs::write(path, txt).map_err(|e| e.to_string())?;
+        // HOOK autosave: il salvataggio normale rende superflua la copia automatica.
+        crate::autosave::discard_for_title(&self.project.info.title);
         self.path = Some(path.to_path_buf());
         self.dirty = false;
         self.status = format!("Salvato {}", path.display());
