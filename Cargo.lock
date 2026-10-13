@@ -1569,6 +1569,7 @@ dependencies = [
  "mfc-engine",
  "mfc-flp",
  "mfc-gui",
+ "mfc-host",
  "mfc-mcp",
  "mfc-midi",
  "mfc-plugins",

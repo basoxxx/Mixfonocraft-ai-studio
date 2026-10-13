@@ -133,6 +133,8 @@ enum Cmd {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
+    // Plugin VST3/CLAP del progetto suonati anche nei render da riga di comando.
+    mfc_plugins::set_external_host(Some(std::sync::Arc::new(mfc_host::Host::new())));
     let Some(command) = cli.command else {
         #[cfg(feature = "gui")]
         return mfc_gui::run(Project::new("Untitled"), None).map_err(|e| anyhow!("finestra grafica: {e}"));
