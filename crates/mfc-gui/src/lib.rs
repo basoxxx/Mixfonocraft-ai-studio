@@ -4,6 +4,7 @@
 //! step sequencer, Piano Roll, Playlist, Mixer ed editor dei plugin.
 
 pub mod app;
+pub mod audio_rec;
 pub mod automation_rec;
 pub mod autosave;
 pub mod input;

@@ -379,8 +379,9 @@ fn external_body(ui: &mut Ui, studio: &mut Studio, target: PluginTarget, r: &Res
             );
         });
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            let can_open =
-                crate::plugin_window::PluginWindow::SUPPORTED && live_inst.as_ref().is_some_and(|i| i.has_editor());
+            let can_open = live_inst.as_ref().is_some_and(|i| {
+                i.has_editor() && (i.editor_is_external() || crate::plugin_window::PluginWindow::SUPPORTED)
+            });
             let open = studio.plugin_windows.contains_key(&id);
             let btn = ui
                 .add_enabled(
@@ -395,6 +396,20 @@ fn external_body(ui: &mut Ui, studio: &mut Studio, target: PluginTarget, r: &Res
         });
     });
     ui.add_space(6.0);
+    // Plugin in un processo separato andato in crash: messaggio e riavvio.
+    if let Some(i) = live_inst.as_ref().filter(|i| !i.is_alive()) {
+        let why = i.crash_reason().unwrap_or_else(|| "motivo sconosciuto".into());
+        ui.horizontal(|ui| {
+            ui.label(RichText::new(format!("Il plugin si è chiuso in modo anomalo ({why})")).color(pal::RED));
+            if ui.button("Riavvia").clicked() {
+                studio.status = match studio.host.restart(&id) {
+                    Ok(()) => format!("{plugin_name} riavviato"),
+                    Err(e) => format!("Riavvio non riuscito: {e}"),
+                };
+            }
+        });
+        ui.add_space(4.0);
+    }
     let Some(live_inst) = live_inst else {
         ui.label(
             RichText::new("Plugin non caricato: controlla che sia ancora installato nello stesso percorso.")

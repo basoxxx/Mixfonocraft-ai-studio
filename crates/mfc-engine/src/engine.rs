@@ -454,6 +454,9 @@ impl Engine {
     pub fn process(&mut self, left: &mut [f32], right: &mut [f32]) {
         let started = Instant::now();
         self.handle_commands();
+        // Stato del transport pubblicato subito: chi legge gli eventi prodotti in questo
+        // blocco (es. cambi di parametro dei plugin) lo vede già aggiornato.
+        self.shared.playing.store(self.playing, Ordering::Relaxed);
         let n = left.len().min(right.len());
         let mut done = 0;
         while done < n {

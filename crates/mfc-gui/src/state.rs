@@ -76,6 +76,8 @@ pub struct Studio {
     pub host: Arc<mfc_host::Host>,
     /// Finestre aperte con l'interfaccia originale dei plugin, per `instance_id`.
     pub plugin_windows: HashMap<String, PluginWindow>,
+    /// Registrazione audio dall'ingresso (vedi `audio_rec.rs`).
+    pub audio_rec: crate::audio_rec::AudioRec,
     /// Ingresso live: tastiera del computer e MIDI.
     pub live: LiveInput,
     /// Registrazione delle note live nel pattern corrente (durante la riproduzione).
@@ -116,6 +118,7 @@ impl Studio {
             },
             host,
             plugin_windows: HashMap::new(),
+            audio_rec: Default::default(),
             live: LiveInput::new(handle.clone()),
             recording: false,
             auto_rec: Default::default(),
@@ -271,6 +274,10 @@ impl Studio {
             self.engine.pause();
         } else {
             self.engine.play();
+            // Record già armato: una nuova ripresa audio parte con la riproduzione.
+            if self.recording && !self.audio_rec.is_active() {
+                self.start_audio_take();
+            }
         }
     }
 
@@ -289,6 +296,7 @@ impl Studio {
             if !self.engine.shared.is_playing() {
                 self.engine.play();
             }
+            self.start_audio_take();
         }
     }
 
@@ -301,6 +309,7 @@ impl Studio {
 
     /// Chiude le note ancora tenute e le scrive nel pattern.
     fn finish_recording(&mut self) {
+        self.finish_audio_take();
         self.finish_automation_recording();
         let Some((pat, len, snap)) = self.record_target() else {
             return;

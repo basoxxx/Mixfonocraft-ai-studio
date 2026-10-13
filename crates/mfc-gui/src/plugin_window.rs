@@ -14,11 +14,13 @@ use mfc_host::{EditorSize, ExternalInstance};
 /// Una finestra con l'editor nativo di un plugin.
 pub struct PluginWindow {
     instance: Arc<dyn ExternalInstance>,
-    native: platform::Native,
+    /// `None` per i plugin in un processo separato: la finestra è del processo helper.
+    native: Option<platform::Native>,
 }
 
 impl PluginWindow {
-    /// `true` se la piattaforma corrente supporta gli editor nativi.
+    /// `true` se la piattaforma corrente supporta gli editor nativi (per i plugin in un
+    /// processo separato decide il processo helper: vedi `ExternalInstance::editor_is_external`).
     pub const SUPPORTED: bool = platform::SUPPORTED;
 
     /// Crea la finestra e vi apre l'editor del plugin.
@@ -26,12 +28,22 @@ impl PluginWindow {
         if !instance.has_editor() {
             return Err("il plugin non ha un'interfaccia propria".into());
         }
+        if instance.editor_is_external() {
+            // Il processo helper crea da sé la finestra: il genitore viene ignorato.
+            instance
+                .open_editor(mfc_host::ParentWindow::X11(0))
+                .map_err(|e| e.to_string())?;
+            return Ok(Self { instance, native: None });
+        }
         let native = platform::Native::create(title)?;
         match instance.open_editor(native.parent()) {
             Ok(size) => {
                 native.resize(size);
                 native.show();
-                Ok(Self { instance, native })
+                Ok(Self {
+                    instance,
+                    native: Some(native),
+                })
             }
             Err(e) => {
                 native.destroy();
@@ -43,26 +55,33 @@ impl PluginWindow {
     /// Da chiamare a ogni frame: idle del plugin e ridimensionamenti richiesti.
     /// Restituisce `false` quando l'utente ha chiuso la finestra.
     pub fn poll(&mut self) -> bool {
-        if !self.native.is_open() {
+        let Some(native) = &self.native else {
+            return self.instance.is_alive() && self.instance.editor_is_open();
+        };
+        if !native.is_open() {
             return false;
         }
         self.instance.idle();
         if let Some(size) = self.instance.take_editor_resize() {
-            self.native.resize(size);
+            native.resize(size);
         }
         true
     }
 
     /// Porta la finestra in primo piano.
     pub fn focus(&self) {
-        self.native.show();
+        if let Some(n) = &self.native {
+            n.show();
+        }
     }
 }
 
 impl Drop for PluginWindow {
     fn drop(&mut self) {
         self.instance.close_editor();
-        self.native.destroy();
+        if let Some(n) = &self.native {
+            n.destroy();
+        }
     }
 }
 
