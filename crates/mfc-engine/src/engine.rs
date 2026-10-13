@@ -3,6 +3,10 @@
 //! `Engine::process` è real-time safe: nessuna allocazione né lock. I comandi arrivano
 //! da un [`EngineHandle`] tramite canale; i `Prepared` sostituiti tornano indietro su un
 //! canale "garbage" per essere deallocati fuori dal thread audio.
+//!
+//! Il tempo effettivo (BPM del progetto o della clip di automazione `Tempo`) viene
+//! comunicato a generatori ed effetti con `set_tempo` a ogni variazione, sotto-blocco per
+//! sotto-blocco ([`CHUNK`]), e dopo ogni installazione di un nuovo [`Prepared`].
 
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
@@ -197,6 +201,8 @@ pub struct Engine {
     active: Vec<Active>,
     voice_counter: u64,
     tempo: f64,
+    /// Ultimo tempo comunicato ai plugin (`NaN` = da ricomunicare).
+    sent_tempo: f64,
     master_gain: f32,
     // Buffer (CHUNK) per insert e scratch.
     ins_l: Vec<[f32; CHUNK]>,
@@ -219,6 +225,8 @@ impl Engine {
         let shared = Arc::new(SharedState::new(n));
         let engine = Engine {
             tempo: prep.tempo,
+            // `Prepared::build` ha già comunicato il tempo del progetto ai plugin.
+            sent_tempo: prep.tempo,
             master_gain: prep.master_gain,
             prep,
             rx,
@@ -262,6 +270,10 @@ impl Engine {
     }
     pub fn is_playing(&self) -> bool {
         self.playing
+    }
+    /// Tempo effettivo corrente (BPM), automazione compresa.
+    pub fn tempo(&self) -> f64 {
+        self.tempo
     }
     pub fn mode(&self) -> PlayMode {
         self.mode
@@ -344,6 +356,9 @@ impl Engine {
             self.ins_r.resize(self.prep.inserts.len(), [0.0; CHUNK]);
         }
         self.tempo = self.prep.tempo;
+        // I generatori/effetti riusati hanno ancora il tempo della versione precedente.
+        self.sent_tempo = f64::NAN;
+        self.sync_tempo();
         self.master_gain = self.prep.master_gain;
         if let PlayMode::Pattern(p) = self.mode {
             if self.prep.sequence(Some(p)).is_none() {
@@ -354,6 +369,24 @@ impl Engine {
         if let Err(e) = self.garbage.try_send(old) {
             // Nessuno raccoglie: dealloca qui (accettabile nel render offline).
             drop(e.into_inner());
+        }
+    }
+
+    /// Comunica il tempo effettivo a generatori ed effetti se è cambiato.
+    /// Real-time safe: solo chiamate a `set_tempo`, nessuna allocazione.
+    fn sync_tempo(&mut self) {
+        if self.tempo == self.sent_tempo {
+            return;
+        }
+        self.sent_tempo = self.tempo;
+        let bpm = self.tempo as f32;
+        for c in self.prep.channels.iter_mut() {
+            c.gen.set_tempo(bpm);
+        }
+        for ins in self.prep.inserts.iter_mut() {
+            for fx in ins.slots.iter_mut().filter_map(|s| s.fx.as_mut()) {
+                fx.set_tempo(bpm);
+            }
         }
     }
 
@@ -427,6 +460,7 @@ impl Engine {
             let mut len = (n - done).min(CHUNK);
             if self.playing {
                 self.apply_automation();
+                self.sync_tempo();
                 self.fire_events();
                 // Accorcia il sotto-blocco fino al prossimo evento per l'accuratezza al sample.
                 let spt = self.samples_per_tick();

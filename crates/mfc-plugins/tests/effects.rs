@@ -268,3 +268,99 @@ fn sample_rate_changes_are_safe() {
         }
     }
 }
+
+/// Indice della divisione di sync con questa etichetta.
+fn sync_index(label: &str) -> f32 {
+    mfc_plugins::sync::SYNC_CHOICES
+        .iter()
+        .position(|c| *c == label)
+        .unwrap() as f32
+}
+
+/// Posizione (campioni) del primo eco di un impulso.
+fn echo_position(fx: &mut dyn Effect, seconds: f32) -> usize {
+    let n = (seconds * SR) as usize;
+    let mut l = vec![0.0; n];
+    l[0] = 1.0;
+    let mut r = l.clone();
+    run(fx, &mut l, &mut r);
+    l.iter()
+        .enumerate()
+        .max_by(|a, b| a.1.abs().total_cmp(&b.1.abs()))
+        .map(|(i, _)| i)
+        .unwrap()
+}
+
+#[test]
+fn delay_sync_follows_tempo() {
+    let base = [
+        ("dry", 0.0),
+        ("wet", 1.0),
+        ("feedback", 0.0),
+        ("cutoff", 20_000.0),
+        ("time", 1000.0),
+    ];
+    for (label, bpm, secs) in [("1/8", 120.0, 0.25), ("1/4", 100.0, 0.6), ("1/8 puntato", 120.0, 0.375)] {
+        let mut params = base.to_vec();
+        params.push(("sync", sync_index(label)));
+        let mut fx = make(ids::DELAY, &params);
+        fx.set_tempo(bpm);
+        let pos = echo_position(fx.as_mut(), 1.5);
+        let want = (secs * SR) as usize;
+        assert!(
+            pos.abs_diff(want) <= 2,
+            "{label} a {bpm} BPM: eco a {pos}, atteso {want}"
+        );
+    }
+    // Sync Off: vale la manopola `time`.
+    let mut fx = make(ids::DELAY, &base);
+    fx.set_tempo(90.0);
+    let pos = echo_position(fx.as_mut(), 1.5);
+    assert!(pos.abs_diff(48_000) <= 2, "{pos}");
+}
+
+#[test]
+fn delay_effective_time_and_clamp() {
+    use mfc_plugins::effects::delay::{Delay, MAX_TIME_MS};
+    let mut d = Delay::new();
+    d.set_param("time", 123.0);
+    assert_eq!(d.effective_time_ms(), 123.0);
+    d.set_param("sync", sync_index("1/16"));
+    d.set_tempo(120.0);
+    assert!((d.effective_time_ms() - 125.0).abs() < 1e-3);
+    d.set_tempo(150.0);
+    assert!((d.effective_time_ms() - 100.0).abs() < 1e-3);
+    // 4 battute a 60 BPM = 16 s: limitato al massimo della linea.
+    d.set_param("sync", sync_index("4 battute"));
+    d.set_tempo(60.0);
+    assert_eq!(d.effective_time_ms(), MAX_TIME_MS);
+}
+
+#[test]
+fn modulation_effects_accept_sync() {
+    // Con sync attivo l'effetto resta stabile e il risultato dipende dal tempo.
+    for (id, param) in [
+        (ids::CHORUS, "sync"),
+        (ids::FLANGER, "sync"),
+        (ids::PHASER, "sync"),
+        (ids::FILTER, "lfo_sync"),
+    ] {
+        let mut extra = vec![(param, sync_index("1/4"))];
+        if id == ids::FILTER {
+            extra.push(("lfo_amount", 2.0));
+        }
+        let render_at = |bpm: f32| {
+            let mut fx = make(id, &extra);
+            fx.set_tempo(bpm);
+            let mut l = noise(24_000, 0.5, 7);
+            let mut r = noise(24_000, 0.5, 8);
+            run(fx.as_mut(), &mut l, &mut r);
+            assert!(l.iter().chain(&r).all(|x| x.is_finite()), "{id}");
+            l
+        };
+        let a = render_at(120.0);
+        let b = render_at(75.0);
+        let diff = a.iter().zip(&b).map(|(x, y)| (x - y).abs()).fold(0.0f32, f32::max);
+        assert!(diff > 1e-3, "{id}: il tempo non influisce sull'LFO sincronizzato");
+    }
+}

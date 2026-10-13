@@ -208,3 +208,65 @@ fn lfo_volume_makes_tremolo() {
         .fold((f32::MAX, 0.0f32), |(a, b), &x| (a.min(x), b.max(x)));
     assert!(lo < hi * 0.3, "tremolo assente: {lo} {hi}");
 }
+
+/// Numero di discese del livello (inviluppo a finestre da 5 ms) sotto la metà dell'escursione.
+fn tremolo_cycles(x: &[f32]) -> usize {
+    let levels: Vec<f32> = x.chunks(240).map(peak).collect();
+    let (lo, hi) = levels
+        .iter()
+        .fold((f32::MAX, 0.0f32), |(a, b), &v| (a.min(v), b.max(v)));
+    let mid = 0.5 * (lo + hi);
+    levels.windows(2).filter(|w| w[0] >= mid && w[1] < mid).count()
+}
+
+fn sync_index(label: &str) -> f32 {
+    mfc_plugins::sync::SYNC_CHOICES
+        .iter()
+        .position(|c| *c == label)
+        .unwrap() as f32
+}
+
+/// Tremolo sinusoidale a profondità piena; il rate (4 Hz) va ignorato con il sync attivo.
+fn tremolo(sync: f32) -> Box<dyn Generator> {
+    make(&[
+        ("osc1_wave", 0.0),
+        ("osc2_level", 0.0),
+        ("lfo1_shape", 0.0),
+        ("lfo1_dest", 4.0),
+        ("lfo1_amount", 1.0),
+        ("lfo1_rate", 4.0),
+        ("lfo1_sync", sync),
+        ("aenv_sustain", 1.0),
+    ])
+}
+
+#[test]
+fn synced_lfo_period_follows_tempo() {
+    // 1/4 a 120 BPM = 2 Hz → 8 cicli in 4 s; a 60 BPM → 4; 1/8 a 120 → 16.
+    for (label, bpm, cycles) in [("1/4", 120.0, 8usize), ("1/4", 60.0, 4), ("1/8", 120.0, 16)] {
+        let mut g = tremolo(sync_index(label));
+        g.set_tempo(bpm);
+        g.note_on(NoteOn::simple(1, 69, 1.0));
+        let (l, _) = render(g.as_mut(), 4.0);
+        let n = tremolo_cycles(&l);
+        assert!(
+            n.abs_diff(cycles) <= 1,
+            "{label} a {bpm} BPM: {n} cicli invece di {cycles}"
+        );
+    }
+    // Sync Off: vale il rate (4 Hz → 16 cicli), indipendente dal tempo.
+    let mut g = tremolo(0.0);
+    g.set_tempo(60.0);
+    g.note_on(NoteOn::simple(1, 69, 1.0));
+    let (l, _) = render(g.as_mut(), 4.0);
+    let n = tremolo_cycles(&l);
+    assert!(n.abs_diff(16) <= 1, "{n}");
+}
+
+#[test]
+fn wobble_preset_is_synced_to_eighths() {
+    let p = presets(ids::NOVA).iter().find(|p| p.name == "Wobble Bass").unwrap();
+    let v = preset_values(descriptor(ids::NOVA).unwrap(), p);
+    let sync = v.iter().find(|(k, _)| *k == "lfo1_sync").unwrap().1 as usize;
+    assert_eq!(mfc_plugins::sync::SYNC_CHOICES[sync], "1/8");
+}

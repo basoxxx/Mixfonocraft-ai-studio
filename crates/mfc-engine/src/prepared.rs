@@ -3,6 +3,7 @@
 //! ordine topologico del mixer, maschera di ascolto per il solo.
 //!
 //! Va costruito FUORI dal thread audio (alloca, carica campioni).
+//! Generatori ed effetti ricevono subito il tempo del progetto (`set_tempo`).
 
 use std::collections::HashMap;
 
@@ -117,6 +118,7 @@ impl Prepared {
         let chan_index: HashMap<ChannelId, usize> =
             project.channels.iter().enumerate().map(|(i, c)| (c.id, i)).collect();
         let n_inserts = project.mixer.inserts.len().max(1);
+        let bpm = project.tempo as f32;
 
         let channels = project
             .channels
@@ -125,6 +127,7 @@ impl Prepared {
                 let mut gen = create_generator(&c.plugin, sample_rate);
                 let pitch = c.pitch_cents + project.master_pitch;
                 gen.set_pitch_offset(pitch);
+                gen.set_tempo(bpm);
                 ChannelRt {
                     id: c.id,
                     key: channel_key(c),
@@ -150,7 +153,10 @@ impl Prepared {
                     .iter()
                     .map(|s| SlotRt {
                         key: plugin_key(&s.plugin),
-                        fx: create_effect(&s.plugin, sample_rate),
+                        fx: create_effect(&s.plugin, sample_rate).map(|mut fx| {
+                            fx.set_tempo(bpm);
+                            fx
+                        }),
                         enabled: s.enabled,
                         mix: s.mix,
                         params: s.plugin.params.iter().map(|(k, v)| (k.clone(), *v)).collect(),

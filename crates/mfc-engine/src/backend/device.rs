@@ -1,9 +1,13 @@
-//! Uscita audio realtime tramite cpal.
+//! Uscita audio realtime tramite cpal e registrazione dell'ingresso ([`InputRecorder`]).
+
+use std::path::Path;
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::{BufferSize, SampleFormat, SupportedBufferSize};
+use cpal::{BufferSize, FromSample, SampleFormat, SizedSample, SupportedBufferSize};
 
+use crate::capture::{capture_channel, CaptureProducer, CaptureWriter, RecordedTake};
 use crate::engine::Engine;
+use crate::render::WavFormat;
 
 /// Frequenze di campionamento proposte quando il dispositivo non dichiara le proprie.
 pub const STANDARD_RATES: [u32; 4] = [44_100, 48_000, 88_200, 96_000];
@@ -181,5 +185,153 @@ impl DeviceBackend {
             sample_rate,
             channels,
         })
+    }
+}
+
+// ---------------------------------------------------------------------------------------
+// Ingresso audio (registrazione)
+// ---------------------------------------------------------------------------------------
+
+/// Secondi di audio che il ring d'ingresso può contenere prima di scartare frame.
+const INPUT_RING_SECONDS: u32 = 4;
+
+/// Nomi dei dispositivi d'ingresso disponibili sull'host di default.
+pub fn input_devices() -> Vec<String> {
+    let host = cpal::default_host();
+    match host.input_devices() {
+        Ok(devices) => devices.filter_map(|d| device_name(&d)).collect(),
+        Err(_) => Vec::new(),
+    }
+}
+
+fn find_input_device(host: &cpal::Host, name: Option<&str>) -> Result<cpal::Device, String> {
+    let Some(name) = name else {
+        return host
+            .default_input_device()
+            .ok_or_else(|| "nessun dispositivo d'ingresso disponibile".to_string());
+    };
+    let devices = host.input_devices().map_err(|e| e.to_string())?;
+    devices
+        .into_iter()
+        .find(|d| device_name(d).as_deref() == Some(name))
+        .ok_or_else(|| format!("dispositivo d'ingresso \"{name}\" non trovato"))
+}
+
+/// Registrazione in corso da un dispositivo d'ingresso su file WAV stereo.
+///
+/// La callback cpal converte i campioni in `f32` stereo (mono duplicato) e li accoda in
+/// un ring lock-free ([`crate::capture`]); un thread li scrive su disco alla frequenza del
+/// dispositivo. Nessun monitoraggio dell'ingresso: l'audio registrato non passa dal mixer.
+/// Per posare la take nella Playlist vedi [`crate::capture::take_placement`].
+pub struct InputRecorder {
+    stream: cpal::Stream,
+    writer: CaptureWriter,
+    sample_rate: u32,
+    channels: u16,
+}
+
+impl InputRecorder {
+    /// Avvia la registrazione (WAV 24 bit) dal dispositivo `device` (`None` = default)
+    /// con la sua configurazione predefinita.
+    pub fn start(device: Option<&str>, path: &Path) -> Result<Self, String> {
+        Self::start_with_format(device, path, WavFormat::Int24)
+    }
+
+    /// Come [`InputRecorder::start`], scegliendo il formato del file.
+    pub fn start_with_format(device: Option<&str>, path: &Path, format: WavFormat) -> Result<Self, String> {
+        let host = cpal::default_host();
+        let dev = find_input_device(&host, device)?;
+        let supported = dev
+            .default_input_config()
+            .map_err(|e| format!("configurazione d'ingresso: {e}"))?;
+        let sample_format = supported.sample_format();
+        let config = supported.config();
+        let sample_rate = config.sample_rate;
+        let channels = config.channels;
+        let (producer, consumer) = capture_channel((sample_rate * INPUT_RING_SECONDS) as usize);
+        // In caso d'errore più avanti il writer, lasciato cadere, chiude il suo thread.
+        let writer = CaptureWriter::spawn(consumer, path, sample_rate, format)?;
+        let stream = match sample_format {
+            SampleFormat::I8 => build_input::<i8>(&dev, config, producer),
+            SampleFormat::I16 => build_input::<i16>(&dev, config, producer),
+            SampleFormat::I24 => build_input::<cpal::I24>(&dev, config, producer),
+            SampleFormat::I32 => build_input::<i32>(&dev, config, producer),
+            SampleFormat::I64 => build_input::<i64>(&dev, config, producer),
+            SampleFormat::U8 => build_input::<u8>(&dev, config, producer),
+            SampleFormat::U16 => build_input::<u16>(&dev, config, producer),
+            SampleFormat::U24 => build_input::<cpal::U24>(&dev, config, producer),
+            SampleFormat::U32 => build_input::<u32>(&dev, config, producer),
+            SampleFormat::U64 => build_input::<u64>(&dev, config, producer),
+            SampleFormat::F32 => build_input::<f32>(&dev, config, producer),
+            SampleFormat::F64 => build_input::<f64>(&dev, config, producer),
+            other => Err(format!("formato d'ingresso {other:?} non supportato")),
+        }?;
+        stream.play().map_err(|e| format!("avvio stream d'ingresso: {e}"))?;
+        Ok(Self {
+            stream,
+            writer,
+            sample_rate,
+            channels,
+        })
+    }
+
+    /// Picco d'ingresso (lineare) dall'ultima lettura; la lettura lo azzera.
+    pub fn level(&self) -> f32 {
+        self.writer.meter().take_peak()
+    }
+
+    /// Frequenza del dispositivo (e del file).
+    pub fn sample_rate(&self) -> u32 {
+        self.sample_rate
+    }
+
+    /// Canali del dispositivo (il file è sempre stereo).
+    pub fn channels(&self) -> u16 {
+        self.channels
+    }
+
+    /// Ferma la stream, completa e chiude il WAV.
+    pub fn stop(self) -> Result<RecordedTake, String> {
+        let Self { stream, writer, .. } = self;
+        let _ = stream.pause();
+        // Chiudere la stream ferma la callback (il produttore) prima di finalizzare il file.
+        drop(stream);
+        writer.finish()
+    }
+}
+
+fn build_input<T>(
+    dev: &cpal::Device,
+    config: cpal::StreamConfig,
+    mut producer: CaptureProducer,
+) -> Result<cpal::Stream, String>
+where
+    T: SizedSample,
+    f32: FromSample<T>,
+{
+    let channels = config.channels as usize;
+    dev.build_input_stream(
+        config,
+        move |data: &[T], _: &cpal::InputCallbackInfo| {
+            producer.push_interleaved(data, channels, |s| f32::from_sample_(s));
+        },
+        |e| eprintln!("errore stream d'ingresso: {e}"),
+        None,
+    )
+    .map_err(|e| format!("stream d'ingresso: {e}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Senza scheda audio non deve andare in panico: lista (anche vuota) o errore pulito.
+    #[test]
+    fn input_enumeration_and_missing_device_do_not_panic() {
+        let _ = input_devices();
+        let path = std::env::temp_dir().join(format!("mfc-input-{}.wav", std::process::id()));
+        let res = InputRecorder::start(Some("dispositivo-inesistente-mfc"), &path);
+        assert!(res.is_err());
+        let _ = std::fs::remove_file(&path);
     }
 }
