@@ -207,12 +207,12 @@ fn toast(ctx: &egui::Context, studio: &Studio, up: &mut Updater) {
                 ui.label(
                     RichText::new(format!("Disponibile Mixfonocraft {}", release.version))
                         .strong()
-                        .color(pal::ACCENT),
+                        .color(pal::ACCENT()),
                 );
                 ui.label(
                     RichText::new(format!("Versione in uso: {}", update::CURRENT_VERSION))
                         .small()
-                        .color(pal::TEXT_DIM),
+                        .color(pal::TEXT_DIM()),
                 );
                 ui.add_space(6.0);
                 match &up.phase {
@@ -221,7 +221,7 @@ fn toast(ctx: &egui::Context, studio: &Studio, up: &mut Updater) {
                             if ui.button("Novità").clicked() {
                                 up.show_notes = true;
                             }
-                            if ui.button(RichText::new("Aggiorna ora").color(pal::ACCENT)).clicked() {
+                            if ui.button(RichText::new("Aggiorna ora").color(pal::ACCENT())).clicked() {
                                 up.start_download(ui.ctx());
                             }
                             if ui.button("Più tardi").clicked() {
@@ -246,7 +246,7 @@ fn toast(ctx: &egui::Context, studio: &Studio, up: &mut Updater) {
                         ui.label("Download completato.");
                         ui.horizontal(|ui| {
                             if ui
-                                .button(RichText::new("Installa e riavvia").color(pal::ACCENT))
+                                .button(RichText::new("Installa e riavvia").color(pal::ACCENT()))
                                 .clicked()
                             {
                                 if studio.dirty {
@@ -361,7 +361,7 @@ fn about_window(ctx: &egui::Context, up: &mut Updater) {
         .resizable(false)
         .anchor(Align2::CENTER_CENTER, egui::Vec2::ZERO)
         .show(ctx, |ui| {
-            ui.label(RichText::new("Mixfonocraft AI Studio").strong().color(pal::TEXT));
+            ui.label(RichText::new("Mixfonocraft AI Studio").strong().color(pal::TEXT()));
             ui.label(format!("Versione {}", update::CURRENT_VERSION));
             ui.hyperlink_to("Pagina del progetto", format!("https://github.com/{}", update::REPO));
         });

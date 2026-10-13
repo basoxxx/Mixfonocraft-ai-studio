@@ -158,7 +158,8 @@ impl PianoRoll {
             ui.add_space(40.0);
             ui.vertical_centered(|ui| {
                 ui.label(
-                    RichText::new("Seleziona un canale nel Channel Rack per modificarne le note.").color(pal::TEXT_DIM),
+                    RichText::new("Seleziona un canale nel Channel Rack per modificarne le note.")
+                        .color(pal::TEXT_DIM()),
                 );
             });
             return;
@@ -218,7 +219,7 @@ impl PianoRoll {
                     });
                 }
                 ui.add_space(6.0);
-                let ghost = widgets::toggle(ui, self.show_ghosts, "GHOST", pal::BLUE, vec2(56.0, 22.0))
+                let ghost = widgets::toggle(ui, self.show_ghosts, "GHOST", pal::BLUE(), vec2(56.0, 22.0))
                     .on_hover_text("Mostra le note degli altri canali");
                 if ghost.clicked() {
                     self.show_ghosts = !self.show_ghosts;
@@ -228,7 +229,11 @@ impl PianoRoll {
                         .logarithmic(true)
                         .show_value(false),
                 );
-                ui.label(RichText::new("ZOOM").font(theme::bold_font(9.5)).color(pal::TEXT_FAINT));
+                ui.label(
+                    RichText::new("ZOOM")
+                        .font(theme::bold_font(9.5))
+                        .color(pal::TEXT_FAINT()),
+                );
                 egui::ComboBox::from_id_salt("pr_snap")
                     .width(96.0)
                     .selected_text(self.snap.label())
@@ -237,7 +242,11 @@ impl PianoRoll {
                             ui.selectable_value(&mut self.snap, s, s.label());
                         }
                     });
-                ui.label(RichText::new("SNAP").font(theme::bold_font(9.5)).color(pal::TEXT_FAINT));
+                ui.label(
+                    RichText::new("SNAP")
+                        .font(theme::bold_font(9.5))
+                        .color(pal::TEXT_FAINT()),
+                );
             },
         );
 
@@ -292,11 +301,7 @@ impl PianoRoll {
             while b * bar < len {
                 let x0 = x_of((b * bar) as f64);
                 let x1 = x_of(((b + 1) * bar) as f64);
-                let c = if b % 2 == 0 {
-                    Color32::from_rgb(0x1d, 0x21, 0x26)
-                } else {
-                    Color32::from_rgb(0x19, 0x1c, 0x21)
-                };
+                let c = if b % 2 == 0 { pal::GRID_A() } else { pal::GRID_B() };
                 painter.rect_filled(
                     Rect::from_min_max(pos2(x0, notes_top), pos2(x1, origin.y + height)),
                     0.0,
@@ -311,12 +316,16 @@ impl PianoRoll {
                 }
                 let row = Rect::from_min_size(pos2(origin.x + KEYS_W, y), vec2(width - KEYS_W, self.key_h));
                 if is_black(k) {
-                    painter.rect_filled(row, 0.0, Color32::from_black_alpha(55));
+                    painter.rect_filled(
+                        row,
+                        0.0,
+                        Color32::from_black_alpha(if pal::is_light() { 20 } else { 55 }),
+                    );
                 }
                 if k % 12 == 0 {
                     painter.line_segment(
                         [row.left_bottom(), row.right_bottom()],
-                        Stroke::new(1.0, Color32::from_rgb(0x2c, 0x31, 0x37)),
+                        Stroke::new(1.0, pal::GRID_LINE_STRONG()),
                     );
                 }
             }
@@ -327,11 +336,11 @@ impl PianoRoll {
                 let x = x_of(t as f64);
                 if x >= clip.left() - 1.0 && x <= clip.right() + 1.0 {
                     let (w, c) = if t % bar == 0 {
-                        (1.0, Color32::from_rgb(0x3a, 0x40, 0x48))
+                        (1.0, pal::GRID_LINE_STRONG())
                     } else if t % tb.ticks_per_beat() == 0 {
-                        (1.0, Color32::from_rgb(0x2a, 0x2f, 0x35))
+                        (1.0, pal::GRID_LINE())
                     } else {
-                        (1.0, Color32::from_rgb(0x22, 0x26, 0x2b))
+                        (1.0, theme::mix(pal::GRID_A(), pal::GRID_LINE(), 0.5))
                     };
                     painter.line_segment([pos2(x, notes_top), pos2(x, origin.y + height)], Stroke::new(w, c));
                 }
@@ -396,7 +405,7 @@ impl PianoRoll {
                 let x = x_of(ph);
                 painter.line_segment(
                     [pos2(x, notes_top), pos2(x, origin.y + height)],
-                    Stroke::new(1.5, pal::ACCENT),
+                    Stroke::new(1.5, pal::ACCENT()),
                 );
             }
 
@@ -437,34 +446,34 @@ impl PianoRoll {
                     );
                 }
             }
-            painter.line_segment([kb.right_top(), kb.right_bottom()], Stroke::new(1.0, pal::BORDER));
+            painter.line_segment([kb.right_top(), kb.right_bottom()], Stroke::new(1.0, pal::BORDER()));
 
             // Righello (sticky in alto).
             let ruler = Rect::from_min_max(pos2(origin.x, ruler_y), pos2(origin.x + width, ruler_y + RULER_H));
-            painter.rect_filled(ruler, 0.0, pal::BG_RAISED);
+            painter.rect_filled(ruler, 0.0, pal::BG_RAISED());
             painter.line_segment(
                 [ruler.left_bottom(), ruler.right_bottom()],
-                Stroke::new(1.0, pal::BORDER),
+                Stroke::new(1.0, pal::BORDER()),
             );
             let mut b = 0;
             while b * bar <= len {
                 let x = x_of((b * bar) as f64);
                 painter.line_segment(
                     [pos2(x, ruler.bottom() - 8.0), pos2(x, ruler.bottom())],
-                    Stroke::new(1.0, pal::TEXT_FAINT),
+                    Stroke::new(1.0, pal::TEXT_FAINT()),
                 );
                 painter.text(
                     pos2(x + 4.0, ruler.center().y),
                     Align2::LEFT_CENTER,
                     (b + 1).to_string(),
                     theme::bold_font(10.5),
-                    pal::TEXT_DIM,
+                    pal::TEXT_DIM(),
                 );
                 for q in 1..tb.signature.numerator as u64 {
                     let xb = x_of((b * bar + q * tb.ticks_per_beat()) as f64);
                     painter.line_segment(
                         [pos2(xb, ruler.bottom() - 4.0), pos2(xb, ruler.bottom())],
-                        Stroke::new(1.0, pal::LINE),
+                        Stroke::new(1.0, pal::LINE()),
                     );
                 }
                 b += 1;
@@ -472,7 +481,7 @@ impl PianoRoll {
             painter.rect_filled(
                 Rect::from_min_size(pos2(keys_x, ruler_y), vec2(KEYS_W, RULER_H)),
                 0.0,
-                pal::BG_RAISED,
+                pal::BG_RAISED(),
             );
             if let Some(ph) = playhead {
                 let x = x_of(ph);
@@ -482,7 +491,7 @@ impl PianoRoll {
                         pos2(x + 5.0, ruler.top() + 4.0),
                         pos2(x, ruler.bottom() - 2.0),
                     ],
-                    pal::ACCENT,
+                    pal::ACCENT(),
                     Stroke::NONE,
                 ));
             }
@@ -585,8 +594,8 @@ impl PianoRoll {
     ) {
         let resp = ui.interact(rect, ui.id().with("vel_lane"), Sense::click_and_drag());
         let p = ui.painter_at(rect);
-        p.rect_filled(rect, 0.0, pal::BG_RAISED);
-        p.line_segment([rect.left_top(), rect.right_top()], Stroke::new(1.0, pal::BORDER));
+        p.rect_filled(rect, 0.0, pal::BG_RAISED());
+        p.line_segment([rect.left_top(), rect.right_top()], Stroke::new(1.0, pal::BORDER()));
         let lane = Rect::from_min_max(
             pos2(rect.left() + KEYS_W, rect.top() + 8.0),
             rect.right_bottom() - vec2(0.0, 6.0),
@@ -596,13 +605,13 @@ impl PianoRoll {
             Align2::LEFT_TOP,
             "VEL",
             theme::bold_font(9.5),
-            pal::TEXT_FAINT,
+            pal::TEXT_FAINT(),
         );
         for frac in [0.25f32, 0.5, 0.75] {
             let y = lane.bottom() - lane.height() * frac;
             p.line_segment(
                 [pos2(lane.left(), y), pos2(lane.right(), y)],
-                Stroke::new(1.0, Color32::from_rgb(0x2a, 0x2f, 0x35)),
+                Stroke::new(1.0, pal::GRID_LINE()),
             );
         }
         let x_of = |t: Tick| lane.left() - h_offset + t as f32 * self.zoom_x;

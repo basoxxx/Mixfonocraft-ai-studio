@@ -22,11 +22,11 @@ pub fn meter_fraction(peak: f32) -> f32 {
 
 fn meter_color(f: f32) -> Color32 {
     if f > 60.0 / 66.0 {
-        pal::RED
+        pal::RED()
     } else if f > 48.0 / 66.0 {
-        pal::YELLOW
+        pal::YELLOW()
     } else {
-        mix(Color32::from_rgb(0x3b, 0xa8, 0x5a), pal::GREEN, f)
+        mix(Color32::from_rgb(0x3b, 0xa8, 0x5a), pal::GREEN(), f)
     }
 }
 
@@ -44,7 +44,7 @@ pub fn meter(ui: &mut Ui, left: f32, right: f32, size: Vec2) -> Response {
 /// Disegna un meter stereo nel rettangolo dato.
 pub fn paint_meter(ui: &Ui, rect: Rect, left: f32, right: f32) {
     let p = ui.painter();
-    p.rect_filled(rect, 2.0, pal::BG_INSET);
+    p.rect_filled(rect, 2.0, pal::BG_INSET());
     let horizontal = rect.width() >= rect.height();
     let seg = 3.0;
     for (i, v) in [left, right].into_iter().enumerate() {
@@ -71,7 +71,7 @@ pub fn paint_meter(ui: &Ui, rect: Rect, left: f32, right: f32) {
             let c = if on {
                 meter_color(t)
             } else {
-                Color32::from_rgb(0x1a, 0x1e, 0x22)
+                mix(pal::BG_INSET(), pal::BG_WIDGET(), 0.35)
             };
             let r = if horizontal {
                 Rect::from_min_size(
@@ -91,6 +91,75 @@ pub fn paint_meter(ui: &Ui, rect: Rect, left: f32, right: f32) {
 
 // ------------------------------------------------------------------ knob
 
+/// Corsa del knob: lineare o logaritmica (frequenze, velocità).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum KnobScale {
+    #[default]
+    Linear,
+    /// Logaritmica: pura se `min > 0`, altrimenti con un offset (vedi [`knob_to_norm`]).
+    Log,
+}
+
+/// Scala adatta a un parametro: logaritmica per le unità in Hz o per i nomi tipo
+/// cutoff/freq/rate (purché l'intervallo sia positivo e ampio), e per i tempi degli
+/// inviluppi (attack/decay/release/glide in s o ms); altrimenti lineare.
+pub fn knob_scale_for(name: &str, unit: &str, min: f32, max: f32) -> KnobScale {
+    let n = name.to_ascii_lowercase();
+    let time = matches!(unit, "s" | "ms") && ["attack", "decay", "release", "glide"].iter().any(|k| n.contains(k));
+    let freq_like = time || unit.eq_ignore_ascii_case("Hz") || ["cutoff", "freq", "rate"].iter().any(|k| n.contains(k));
+    // Su intervalli stretti (es. 0..1 normalizzato) la corsa logaritmica non serve.
+    let wide = min >= 0.0 && max > min && ((min == 0.0 && max >= 10.0) || (min > 0.0 && max / min >= 10.0));
+    if freq_like && wide {
+        KnobScale::Log
+    } else {
+        KnobScale::Linear
+    }
+}
+
+/// Offset della curva logaritmica: `min` stesso se positivo (log puro), altrimenti
+/// un millesimo dell'intervallo (tre decadi di escursione a partire da `min`).
+fn log_offset(min: f32, max: f32) -> f32 {
+    if min > 0.0 {
+        min
+    } else {
+        ((max - min) / 1000.0).max(1e-6)
+    }
+}
+
+/// Valore → posizione 0..1 lungo la corsa del knob.
+pub fn knob_to_norm(value: f32, min: f32, max: f32, scale: KnobScale) -> f32 {
+    if max == min {
+        return 0.0;
+    }
+    let (lo, hi) = (min.min(max), max.max(min));
+    let v = value.clamp(lo, hi);
+    let t = match scale {
+        KnobScale::Linear => (v - min) / (max - min),
+        KnobScale::Log => {
+            let c = log_offset(lo, hi);
+            ((v - lo + c) / c).ln() / ((hi - lo + c) / c).ln()
+        }
+    };
+    t.clamp(0.0, 1.0)
+}
+
+/// Posizione 0..1 → valore (inversa di [`knob_to_norm`]).
+pub fn knob_from_norm(t: f32, min: f32, max: f32, scale: KnobScale) -> f32 {
+    let t = t.clamp(0.0, 1.0);
+    match scale {
+        KnobScale::Linear => min + (max - min) * t,
+        KnobScale::Log => {
+            let (lo, hi) = (min.min(max), max.max(min));
+            if hi == lo {
+                return lo;
+            }
+            let c = log_offset(lo, hi);
+            let v = lo + c * (((hi - lo + c) / c).ln() * t).exp() - c;
+            v.clamp(lo, hi)
+        }
+    }
+}
+
 /// Knob ad arco (trascina in verticale, Shift = fine, doppio click = default).
 /// `bipolar` disegna l'arco dal centro (pan, pitch).
 #[allow(clippy::too_many_arguments)]
@@ -104,12 +173,41 @@ pub fn knob_ex(
     bipolar: bool,
     color: Color32,
 ) -> Response {
+    knob_scaled(
+        ui,
+        value,
+        min,
+        max,
+        default,
+        diameter,
+        bipolar,
+        color,
+        KnobScale::Linear,
+    )
+}
+
+/// Come [`knob_ex`], con corsa lineare o logaritmica.
+#[allow(clippy::too_many_arguments)]
+pub fn knob_scaled(
+    ui: &mut Ui,
+    value: &mut f32,
+    min: f32,
+    max: f32,
+    default: f32,
+    diameter: f32,
+    bipolar: bool,
+    color: Color32,
+    scale: KnobScale,
+) -> Response {
     let (rect, mut resp) = ui.allocate_exact_size(vec2(diameter, diameter), Sense::click_and_drag());
     if resp.dragged() {
         let fine = if ui.input(|i| i.modifiers.shift) { 0.15 } else { 1.0 };
-        let delta = -resp.drag_delta().y / 160.0 * (max - min) * fine;
-        *value = (*value + delta).clamp(min.min(max), max.max(min));
-        resp.mark_changed();
+        let dt = -resp.drag_delta().y / 160.0 * fine;
+        if dt != 0.0 {
+            let t = knob_to_norm(*value, min, max, scale) + dt;
+            *value = knob_from_norm(t, min, max, scale).clamp(min.min(max), max.max(min));
+            resp.mark_changed();
+        }
     }
     if resp.double_clicked() {
         *value = default;
@@ -118,23 +216,16 @@ pub fn knob_ex(
     if resp.hovered() || resp.dragged() {
         ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeVertical);
     }
-    paint_knob(
-        ui,
-        rect,
-        *value,
-        min,
-        max,
-        bipolar,
-        color,
-        resp.hovered() || resp.dragged(),
-    );
+    let t = knob_to_norm(*value, min, max, scale);
+    let bipolar = bipolar && scale == KnobScale::Linear;
+    paint_knob(ui, rect, t, bipolar, color, resp.hovered() || resp.dragged());
     resp
 }
 
 /// Knob standard con colore d'accento.
 pub fn knob(ui: &mut Ui, value: &mut f32, min: f32, max: f32, default: f32, diameter: f32) -> Response {
     let bipolar = min < 0.0 && max > 0.0;
-    knob_ex(ui, value, min, max, default, diameter, bipolar, pal::ACCENT)
+    knob_ex(ui, value, min, max, default, diameter, bipolar, pal::ACCENT())
 }
 
 const KNOB_START: f32 = 0.75 * PI; // 135°
@@ -150,22 +241,17 @@ fn arc_points(c: Pos2, r: f32, a0: f32, a1: f32) -> Vec<Pos2> {
         .collect()
 }
 
-#[allow(clippy::too_many_arguments)]
-fn paint_knob(ui: &Ui, rect: Rect, value: f32, min: f32, max: f32, bipolar: bool, color: Color32, hot: bool) {
+/// Disegna il knob alla posizione `t` (0..1) della corsa.
+fn paint_knob(ui: &Ui, rect: Rect, t: f32, bipolar: bool, color: Color32, hot: bool) {
     let p = ui.painter();
     let c = rect.center();
     let r = rect.width() / 2.0;
-    let t = if max != min {
-        ((value - min) / (max - min)).clamp(0.0, 1.0)
-    } else {
-        0.0
-    };
     let ring_w = (r * 0.18).max(2.0);
     let ring_r = r - ring_w / 2.0;
     // Traccia di fondo.
     p.add(Shape::line(
         arc_points(c, ring_r, KNOB_START, KNOB_START + KNOB_SWEEP),
-        Stroke::new(ring_w, pal::BG_INSET),
+        Stroke::new(ring_w, pal::BG_INSET()),
     ));
     // Arco del valore.
     let from: f32 = if bipolar { 0.5 } else { 0.0 };
@@ -178,15 +264,20 @@ fn paint_knob(ui: &Ui, rect: Rect, value: f32, min: f32, max: f32, bipolar: bool
     }
     // Corpo.
     let body_r = r - ring_w - 1.5;
-    p.circle_filled(c + vec2(0.0, 1.0), body_r, Color32::from_black_alpha(120));
-    p.circle_filled(c, body_r, if hot { pal::BG_HOVER } else { pal::BG_WIDGET });
-    p.circle_stroke(c, body_r, Stroke::new(1.0, mix(pal::BG_HOVER, Color32::WHITE, 0.08)));
+    p.circle_filled(c + vec2(0.0, 1.0), body_r, pal::SHADOW());
+    p.circle_filled(c, body_r, if hot { pal::BG_HOVER() } else { pal::BG_WIDGET() });
+    let rim = if pal::is_light() {
+        pal::BORDER()
+    } else {
+        mix(pal::BG_HOVER(), Color32::WHITE, 0.08)
+    };
+    p.circle_stroke(c, body_r, Stroke::new(1.0, rim));
     // Indicatore.
     let a = KNOB_START + KNOB_SWEEP * t;
     let dir = vec2(a.cos(), a.sin());
     p.line_segment(
         [c + dir * body_r * 0.25, c + dir * (body_r - 1.0)],
-        Stroke::new(2.0, if hot { Color32::WHITE } else { pal::TEXT }),
+        Stroke::new(2.0, if hot { pal::TEXT_STRONG() } else { pal::TEXT() }),
     );
 }
 
@@ -202,20 +293,36 @@ pub fn labeled_knob(
     diameter: f32,
     text: impl Fn(f32) -> String,
 ) -> Response {
+    labeled_knob_scaled(ui, label, value, min, max, default, diameter, KnobScale::Linear, text)
+}
+
+/// Come [`labeled_knob`], con corsa lineare o logaritmica.
+#[allow(clippy::too_many_arguments)]
+pub fn labeled_knob_scaled(
+    ui: &mut Ui,
+    label: &str,
+    value: &mut f32,
+    min: f32,
+    max: f32,
+    default: f32,
+    diameter: f32,
+    scale: KnobScale,
+    text: impl Fn(f32) -> String,
+) -> Response {
     let mut out = None;
     ui.vertical_centered(|ui| {
         ui.spacing_mut().item_spacing.y = 2.0;
         let bipolar = min < 0.0 && max > 0.0;
-        let r = knob_ex(ui, value, min, max, default, diameter, bipolar, pal::ACCENT);
+        let r = knob_scaled(ui, value, min, max, default, diameter, bipolar, pal::ACCENT(), scale);
         let shown = if r.hovered() || r.dragged() {
             text(*value)
         } else {
             label.to_string()
         };
         let color = if r.hovered() || r.dragged() {
-            pal::ACCENT
+            pal::ACCENT()
         } else {
-            pal::TEXT_DIM
+            pal::TEXT_DIM()
         };
         ui.label(egui::RichText::new(shown).size(10.5).color(color));
         out = Some(r);
@@ -234,8 +341,16 @@ pub fn led(ui: &mut Ui, on: bool, color: Color32, size: f32) -> Response {
     if on {
         p.circle_filled(c, r * 1.9, color.gamma_multiply(0.18));
     }
-    p.circle_filled(c, r, if on { color } else { Color32::from_rgb(0x2a, 0x2f, 0x34) });
-    p.circle_stroke(c, r, Stroke::new(1.0, pal::BORDER));
+    p.circle_filled(
+        c,
+        r,
+        if on {
+            color
+        } else {
+            mix(pal::BG_INSET(), pal::BG_HOVER(), 0.5)
+        },
+    );
+    p.circle_stroke(c, r, Stroke::new(1.0, pal::BORDER()));
     if on {
         p.circle_filled(c - vec2(r * 0.3, r * 0.3), r * 0.35, Color32::from_white_alpha(110));
     }
@@ -250,18 +365,18 @@ pub fn toggle(ui: &mut Ui, on: bool, text: &str, on_color: Color32, size: Vec2) 
     let fill = if on {
         on_color
     } else if hot {
-        pal::BG_HOVER
+        pal::BG_HOVER()
     } else {
-        pal::BG_WIDGET
+        pal::BG_WIDGET()
     };
     p.rect_filled(rect, 4.0, fill);
-    p.rect_stroke(rect, 4.0, Stroke::new(1.0, pal::BORDER), StrokeKind::Inside);
+    p.rect_stroke(rect, 4.0, Stroke::new(1.0, pal::BORDER()), StrokeKind::Inside);
     let fg = if on {
         Color32::from_rgb(0x14, 0x14, 0x14)
     } else if hot {
-        Color32::WHITE
+        pal::TEXT_STRONG()
     } else {
-        pal::TEXT_DIM
+        pal::TEXT_DIM()
     };
     p.text(rect.center(), Align2::CENTER_CENTER, text, bold_font(11.0), fg);
     resp
@@ -277,7 +392,7 @@ pub fn segmented(ui: &mut Ui, items: &[&str], selected: usize, height: f32) -> O
     let total: f32 = widths.iter().sum();
     let (rect, _) = ui.allocate_exact_size(vec2(total, height), Sense::hover());
     let p = ui.painter().clone();
-    p.rect_filled(rect, 5.0, pal::BG_INSET);
+    p.rect_filled(rect, 5.0, pal::BG_INSET());
     let mut x = rect.left();
     let mut clicked = None;
     for (i, (t, w)) in items.iter().zip(&widths).enumerate() {
@@ -285,21 +400,21 @@ pub fn segmented(ui: &mut Ui, items: &[&str], selected: usize, height: f32) -> O
         let resp = ui.interact(r, ui.id().with(("seg", i, *t)), Sense::click());
         let on = i == selected;
         if on {
-            p.rect_filled(r, 4.0, pal::BG_HOVER);
+            p.rect_filled(r, 4.0, pal::BG_HOVER());
             p.rect_filled(
                 Rect::from_min_size(pos2(r.left() + 6.0, r.bottom() - 2.0), vec2(r.width() - 12.0, 2.0)),
                 1.0,
-                pal::ACCENT,
+                pal::ACCENT(),
             );
         } else if resp.hovered() {
-            p.rect_filled(r, 4.0, pal::BG_WIDGET);
+            p.rect_filled(r, 4.0, pal::BG_WIDGET());
         }
         let fg = if on {
-            Color32::WHITE
+            pal::TEXT_STRONG()
         } else if resp.hovered() {
-            pal::TEXT
+            pal::TEXT()
         } else {
-            pal::TEXT_DIM
+            pal::TEXT_DIM()
         };
         p.text(r.center() - vec2(0.0, 0.5), Align2::CENTER_CENTER, *t, font.clone(), fg);
         if resp.clicked() {
@@ -316,11 +431,18 @@ pub fn segmented(ui: &mut Ui, items: &[&str], selected: usize, height: f32) -> O
 pub fn lcd(ui: &mut Ui, text: &str, caption: Option<&str>, width: f32, height: f32, sense: Sense) -> Response {
     let (rect, resp) = ui.allocate_exact_size(vec2(width, height), sense);
     let p = ui.painter();
-    p.rect_filled(rect, 4.0, pal::BG_INSET);
+    p.rect_filled(rect, 4.0, pal::BG_INSET());
     p.rect_stroke(
         rect,
         4.0,
-        Stroke::new(1.0, if resp.hovered() { pal::ACCENT_SOFT } else { pal::BORDER }),
+        Stroke::new(
+            1.0,
+            if resp.hovered() {
+                pal::ACCENT_SOFT()
+            } else {
+                pal::BORDER()
+            },
+        ),
         StrokeKind::Inside,
     );
     // riflesso superiore
@@ -335,17 +457,17 @@ pub fn lcd(ui: &mut Ui, text: &str, caption: Option<&str>, width: f32, height: f
             Align2::LEFT_TOP,
             cap,
             FontId::proportional(8.5),
-            pal::TEXT_FAINT,
+            pal::TEXT_FAINT(),
         );
         p.text(
             rect.right_center() + vec2(-7.0, 3.0),
             Align2::RIGHT_CENTER,
             text,
             mono(size),
-            pal::LCD,
+            pal::LCD(),
         );
     } else {
-        p.text(rect.center(), Align2::CENTER_CENTER, text, mono(size), pal::LCD);
+        p.text(rect.center(), Align2::CENTER_CENTER, text, mono(size), pal::LCD());
     }
     resp
 }
@@ -560,11 +682,11 @@ pub fn icon_button(ui: &mut Ui, icon: Icon, active: bool, active_color: Color32,
     let p = ui.painter();
     let hot = resp.hovered();
     let fill = if active {
-        mix(pal::BG_WIDGET, active_color, 0.22)
+        mix(pal::BG_WIDGET(), active_color, 0.22)
     } else if hot {
-        pal::BG_HOVER
+        pal::BG_HOVER()
     } else {
-        pal::BG_WIDGET
+        pal::BG_WIDGET()
     };
     p.rect_filled(rect, 5.0, fill);
     p.rect_stroke(
@@ -575,7 +697,7 @@ pub fn icon_button(ui: &mut Ui, icon: Icon, active: bool, active_color: Color32,
             if active {
                 active_color.gamma_multiply(0.7)
             } else {
-                pal::BORDER
+                pal::BORDER()
             },
         ),
         StrokeKind::Inside,
@@ -583,9 +705,9 @@ pub fn icon_button(ui: &mut Ui, icon: Icon, active: bool, active_color: Color32,
     let col = if active {
         active_color
     } else if hot {
-        Color32::WHITE
+        pal::TEXT_STRONG()
     } else {
-        pal::TEXT
+        pal::TEXT()
     };
     paint_icon(p, rect.shrink(size * 0.24), icon, col);
     if tooltip.is_empty() {
@@ -612,17 +734,20 @@ pub fn view_header(ui: &mut Ui, icon: Icon, title: &str, subtitle: &str, add: im
             sw: 0,
             se: 0,
         },
-        pal::BG_RAISED,
+        pal::BG_RAISED(),
     );
-    p.line_segment([rect.left_bottom(), rect.right_bottom()], Stroke::new(1.0, pal::BORDER));
+    p.line_segment(
+        [rect.left_bottom(), rect.right_bottom()],
+        Stroke::new(1.0, pal::BORDER()),
+    );
     let ir = Rect::from_center_size(pos2(rect.left() + 18.0, rect.center().y), vec2(16.0, 16.0));
-    paint_icon(p, ir, icon, pal::ACCENT);
+    paint_icon(p, ir, icon, pal::ACCENT());
     let t = p.text(
         pos2(rect.left() + 34.0, rect.center().y),
         Align2::LEFT_CENTER,
         title,
         bold_font(13.0),
-        pal::TEXT,
+        pal::TEXT(),
     );
     if !subtitle.is_empty() {
         p.text(
@@ -630,7 +755,7 @@ pub fn view_header(ui: &mut Ui, icon: Icon, title: &str, subtitle: &str, add: im
             Align2::LEFT_CENTER,
             subtitle,
             FontId::proportional(11.5),
-            pal::TEXT_DIM,
+            pal::TEXT_DIM(),
         );
     }
     let right = Rect::from_min_max(
@@ -648,8 +773,8 @@ pub fn view_header(ui: &mut Ui, icon: Icon, title: &str, subtitle: &str, add: im
 /// Cornice di un pannello-vista (sfondo + bordo arrotondato).
 pub fn view_frame() -> egui::Frame {
     egui::Frame::new()
-        .fill(pal::BG_PANEL)
-        .stroke(Stroke::new(1.0, pal::BORDER))
+        .fill(pal::BG_PANEL())
+        .stroke(Stroke::new(1.0, pal::BORDER()))
         .corner_radius(6)
         .inner_margin(0)
 }
@@ -659,7 +784,7 @@ pub fn section_label(ui: &mut Ui, text: &str) {
     ui.label(
         egui::RichText::new(text.to_uppercase())
             .font(bold_font(10.0))
-            .color(pal::TEXT_FAINT),
+            .color(pal::TEXT_FAINT()),
     );
 }
 
@@ -703,6 +828,76 @@ mod tests {
         assert_eq!(meter_fraction(0.0), 0.0);
         assert!((meter_fraction(1.0) - 60.0 / 66.0).abs() < 1e-6);
         assert_eq!(meter_fraction(100.0), 1.0);
+    }
+
+    const EPS: f32 = 1e-3;
+
+    #[test]
+    fn knob_scale_detection() {
+        assert_eq!(knob_scale_for("cutoff", "Hz", 20.0, 20_000.0), KnobScale::Log);
+        assert_eq!(
+            knob_scale_for("flt_cutoff", "", 0.0, 1.0),
+            KnobScale::Linear,
+            "normalizzato"
+        );
+        assert_eq!(knob_scale_for("lfo1_rate", "Hz", 0.01, 20.0), KnobScale::Log);
+        assert_eq!(knob_scale_for("freq", "", 0.0, 10_000.0), KnobScale::Log);
+        assert_eq!(knob_scale_for("gain", "dB", -24.0, 24.0), KnobScale::Linear);
+        assert_eq!(knob_scale_for("detune", "Hz", -50.0, 50.0), KnobScale::Linear);
+        assert_eq!(knob_scale_for("aenv_attack", "s", 0.0, 10.0), KnobScale::Log);
+        assert_eq!(knob_scale_for("release", "ms", 5.0, 2000.0), KnobScale::Log);
+        assert_eq!(knob_scale_for("aenv_sustain", "", 0.0, 1.0), KnobScale::Linear);
+        assert_eq!(
+            knob_scale_for("decay", "", 0.0, 1.0),
+            KnobScale::Linear,
+            "senza unità di tempo"
+        );
+    }
+
+    #[test]
+    fn knob_mapping_endpoints() {
+        for (min, max) in [(20.0f32, 20_000.0f32), (0.0, 1000.0), (0.01, 20.0), (-1.0, 1.0)] {
+            for scale in [KnobScale::Linear, KnobScale::Log] {
+                assert!(knob_to_norm(min, min, max, scale).abs() < EPS, "{min}..{max} {scale:?}");
+                assert!((knob_to_norm(max, min, max, scale) - 1.0).abs() < EPS);
+                assert!((knob_from_norm(0.0, min, max, scale) - min).abs() < EPS * (max - min));
+                assert!((knob_from_norm(1.0, min, max, scale) - max).abs() < EPS * (max - min));
+                // Fuori corsa: limitato.
+                assert_eq!(knob_to_norm(max * 10.0 + 1.0, min, max, scale), 1.0);
+                assert_eq!(knob_to_norm(min - 5.0, min, max, scale), 0.0);
+            }
+        }
+        // Intervallo degenere.
+        assert_eq!(knob_to_norm(5.0, 5.0, 5.0, KnobScale::Log), 0.0);
+        assert_eq!(knob_from_norm(0.7, 5.0, 5.0, KnobScale::Log), 5.0);
+    }
+
+    #[test]
+    fn knob_mapping_round_trip_and_monotonic() {
+        for (min, max) in [(20.0f32, 20_000.0f32), (0.0, 18_000.0), (0.05, 30.0)] {
+            let mut prev = -1.0;
+            for i in 0..=200 {
+                let t = i as f32 / 200.0;
+                let v = knob_from_norm(t, min, max, KnobScale::Log);
+                assert!(v > prev || i == 0, "monotona: {min}..{max} t={t}");
+                prev = v;
+                let back = knob_to_norm(v, min, max, KnobScale::Log);
+                assert!((back - t).abs() < EPS, "{min}..{max}: {t} -> {v} -> {back}");
+            }
+        }
+    }
+
+    #[test]
+    fn log_knob_is_musical() {
+        // Log puro con min > 0: il centro corsa è la media geometrica (632 Hz).
+        let mid = knob_from_norm(0.5, 20.0, 20_000.0, KnobScale::Log);
+        assert!((mid - (20.0f32 * 20_000.0).sqrt()).abs() < 1.0, "{mid}");
+        // 1 kHz cade oltre metà corsa, molto prima che sulla scala lineare.
+        let t = knob_to_norm(1000.0, 20.0, 20_000.0, KnobScale::Log);
+        assert!(t > 0.5 && t < 0.6, "{t}");
+        // Con min = 0 la curva parte da 0 ma dedica comunque metà corsa alle basse frequenze.
+        let low = knob_from_norm(0.5, 0.0, 20_000.0, KnobScale::Log);
+        assert!(low > 0.0 && low < 2000.0, "{low}");
     }
 
     #[test]

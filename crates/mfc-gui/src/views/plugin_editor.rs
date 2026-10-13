@@ -9,6 +9,7 @@ use crate::state::{PluginTarget, Studio};
 use crate::theme::{self, pal};
 use crate::views::channel_rack::{live, settle};
 use crate::views::key_name;
+use crate::views::synth_visuals;
 use crate::views::widgets::{self, Icon};
 
 /// Velocity della tastiera di prova.
@@ -112,26 +113,26 @@ fn body(ui: &mut Ui, studio: &mut Studio, target: PluginTarget, r: &Resolved, pl
         return;
     }
     let Some(desc) = descriptor(&inst.kind) else {
-        ui.label(RichText::new(format!("Plugin esterno non supportato: {plugin_name}")).color(pal::YELLOW));
+        ui.label(RichText::new(format!("Plugin esterno non supportato: {plugin_name}")).color(pal::YELLOW()));
         ui.label(
             RichText::new(format!(
                 "Lo stato originale ({} byte) è preservato e verrà riscritto all'export .flp.",
                 inst.opaque_state.as_ref().map_or(0, Vec::len)
             ))
-            .color(pal::TEXT_DIM),
+            .color(pal::TEXT_DIM()),
         );
         return;
     };
     // Intestazione del plugin.
     ui.horizontal(|ui| {
         let (ir, _) = ui.allocate_exact_size(vec2(34.0, 34.0), Sense::hover());
-        ui.painter().rect_filled(ir, 6.0, pal::BG_INSET);
+        ui.painter().rect_filled(ir, 6.0, pal::BG_INSET());
         let icon = if desc.role == mfc_plugins::PluginRole::Generator {
             Icon::Wave
         } else {
             Icon::Plugin
         };
-        widgets::paint_icon(ui.painter(), ir.shrink(8.0), icon, pal::ACCENT);
+        widgets::paint_icon(ui.painter(), ir.shrink(8.0), icon, pal::ACCENT());
         // Spazio a destra per Reset e menu dei preset.
         let reserve = if mfc_plugins::presets(desc.id).is_empty() {
             80.0
@@ -141,8 +142,8 @@ fn body(ui: &mut Ui, studio: &mut Studio, target: PluginTarget, r: &Resolved, pl
         ui.vertical(|ui| {
             ui.set_max_width((ui.available_width() - reserve).max(120.0));
             ui.spacing_mut().item_spacing.y = 1.0;
-            ui.label(RichText::new(desc.name).font(theme::bold_font(15.0)).color(pal::TEXT));
-            ui.label(RichText::new(desc.description).size(11.0).color(pal::TEXT_DIM));
+            ui.label(RichText::new(desc.name).font(theme::bold_font(15.0)).color(pal::TEXT()));
+            ui.label(RichText::new(desc.description).size(11.0).color(pal::TEXT_DIM()));
         });
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             let list = mfc_plugins::presets(desc.id);
@@ -259,14 +260,34 @@ fn params_grid(ui: &mut Ui, studio: &mut Studio, target: PluginTarget, inst: &Pl
     }
     for (name, params) in groups {
         egui::Frame::new()
-            .fill(pal::BG_PANEL)
-            .stroke(Stroke::new(1.0, pal::BORDER))
+            .fill(pal::BG_PANEL())
+            .stroke(Stroke::new(1.0, pal::BORDER()))
             .corner_radius(6)
             .inner_margin(10)
             .show(ui, |ui| {
                 ui.set_width(ui.available_width());
                 widgets::section_label(ui, &name);
                 ui.add_space(4.0);
+                // Anteprime grafiche (ADSR, forma d'onda, LFO, filtro) con i valori live.
+                let visuals = synth_visuals::detect(&params);
+                if !visuals.is_empty() {
+                    let ctx = ui.ctx().clone();
+                    let value = |n: &str| {
+                        let committed = desc
+                            .params
+                            .iter()
+                            .find(|p| p.name == n)
+                            .map_or(0.0, |p| inst.params.get(p.name).copied().unwrap_or(p.default));
+                        live(&ctx, live_id(&key, n), committed)
+                    };
+                    ui.horizontal_wrapped(|ui| {
+                        ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
+                        for v in &visuals {
+                            synth_visuals::show(ui, v, &params, &value);
+                        }
+                    });
+                    ui.add_space(6.0);
+                }
                 ui.horizontal_wrapped(|ui| {
                     ui.spacing_mut().item_spacing = vec2(10.0, 10.0);
                     for p in params {
@@ -280,6 +301,11 @@ fn params_grid(ui: &mut Ui, studio: &mut Studio, target: PluginTarget, inst: &Pl
 }
 
 const CELL_W: f32 = 64.0;
+
+/// Id del valore temporaneo (durante il drag) di un parametro.
+fn live_id(key: &str, param: &str) -> Id {
+    Id::new(format!("{key}:{param}:live"))
+}
 
 fn param_control(ui: &mut Ui, studio: &mut Studio, target: PluginTarget, key: &str, p: &ParamDesc, value: f32) {
     ui.allocate_ui(vec2(if p.choices.is_empty() { CELL_W } else { 120.0 }, 70.0), |ui| {
@@ -300,18 +326,19 @@ fn param_control(ui: &mut Ui, studio: &mut Studio, target: PluginTarget, key: &s
                             }
                         }
                     });
-                ui.label(RichText::new(p.label).size(10.5).color(pal::TEXT_DIM));
+                ui.label(RichText::new(p.label).size(10.5).color(pal::TEXT_DIM()));
             } else if is_toggle_param(p) {
                 ui.add_space(12.0);
                 let on = value >= 0.5;
-                if widgets::toggle(ui, on, if on { "ON" } else { "OFF" }, pal::ACCENT, vec2(48.0, 22.0)).clicked() {
+                if widgets::toggle(ui, on, if on { "ON" } else { "OFF" }, pal::ACCENT(), vec2(48.0, 22.0)).clicked() {
                     studio.exec(param_cmd(target, p.name, if on { 0.0 } else { 1.0 }));
                 }
-                ui.label(RichText::new(p.label).size(10.5).color(pal::TEXT_DIM));
+                ui.label(RichText::new(p.label).size(10.5).color(pal::TEXT_DIM()));
             } else {
-                let id = Id::new(format!("{key}:{}:live", p.name));
+                let id = live_id(key, p.name);
                 let mut v = live(ui.ctx(), id, value);
-                let r = widgets::labeled_knob(ui, p.label, &mut v, p.min, p.max, p.default, 38.0, |x| {
+                let scale = widgets::knob_scale_for(p.name, p.unit, p.min, p.max);
+                let r = widgets::labeled_knob_scaled(ui, p.label, &mut v, p.min, p.max, p.default, 38.0, scale, |x| {
                     format_value(p, x)
                 });
                 if let Some(nv) = settle(ui.ctx(), id, &r, v, value) {
@@ -340,7 +367,7 @@ fn preset_menu(
             for p in list {
                 if p.category != category {
                     category = p.category;
-                    ui.label(RichText::new(category).size(10.5).color(pal::TEXT_FAINT));
+                    ui.label(RichText::new(category).size(10.5).color(pal::TEXT_FAINT()));
                 }
                 if ui.selectable_label(false, format!("  {}", p.name)).clicked() {
                     chosen = Some(p);
@@ -366,16 +393,20 @@ fn external_body(ui: &mut Ui, studio: &mut Studio, target: PluginTarget, r: &Res
     let format = mfc_host::parse_kind(&inst.kind).map_or("?", |k| k.format.label());
     ui.horizontal(|ui| {
         let (ir, _) = ui.allocate_exact_size(vec2(34.0, 34.0), Sense::hover());
-        ui.painter().rect_filled(ir, 6.0, pal::BG_INSET);
-        widgets::paint_icon(ui.painter(), ir.shrink(8.0), Icon::Plugin, pal::ACCENT);
+        ui.painter().rect_filled(ir, 6.0, pal::BG_INSET());
+        widgets::paint_icon(ui.painter(), ir.shrink(8.0), Icon::Plugin, pal::ACCENT());
         ui.vertical(|ui| {
             ui.spacing_mut().item_spacing.y = 1.0;
-            ui.label(RichText::new(plugin_name).font(theme::bold_font(15.0)).color(pal::TEXT));
+            ui.label(
+                RichText::new(plugin_name)
+                    .font(theme::bold_font(15.0))
+                    .color(pal::TEXT()),
+            );
             let vendor = live_inst.as_ref().map(|i| i.info().vendor.clone()).unwrap_or_default();
             ui.label(
                 RichText::new(format!("{format}  {vendor}"))
                     .size(11.0)
-                    .color(pal::TEXT_DIM),
+                    .color(pal::TEXT_DIM()),
             );
         });
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -400,7 +431,7 @@ fn external_body(ui: &mut Ui, studio: &mut Studio, target: PluginTarget, r: &Res
     if let Some(i) = live_inst.as_ref().filter(|i| !i.is_alive()) {
         let why = i.crash_reason().unwrap_or_else(|| "motivo sconosciuto".into());
         ui.horizontal(|ui| {
-            ui.label(RichText::new(format!("Il plugin si è chiuso in modo anomalo ({why})")).color(pal::RED));
+            ui.label(RichText::new(format!("Il plugin si è chiuso in modo anomalo ({why})")).color(pal::RED()));
             if ui.button("Riavvia").clicked() {
                 studio.status = match studio.host.restart(&id) {
                     Ok(()) => format!("{plugin_name} riavviato"),
@@ -413,9 +444,9 @@ fn external_body(ui: &mut Ui, studio: &mut Studio, target: PluginTarget, r: &Res
     let Some(live_inst) = live_inst else {
         ui.label(
             RichText::new("Plugin non caricato: controlla che sia ancora installato nello stesso percorso.")
-                .color(pal::YELLOW),
+                .color(pal::YELLOW()),
         );
-        ui.label(RichText::new(&inst.kind).size(10.5).color(pal::TEXT_FAINT));
+        ui.label(RichText::new(&inst.kind).size(10.5).color(pal::TEXT_FAINT()));
         return;
     };
 
@@ -423,7 +454,7 @@ fn external_body(ui: &mut Ui, studio: &mut Studio, target: PluginTarget, r: &Res
     let filter_id = Id::new(("ext_param_filter", &id));
     let mut filter: String = ui.data(|d| d.get_temp(filter_id)).unwrap_or_default();
     ui.horizontal(|ui| {
-        ui.label(RichText::new("Parametri").color(pal::TEXT_DIM));
+        ui.label(RichText::new("Parametri").color(pal::TEXT_DIM()));
         if ui
             .add(
                 egui::TextEdit::singleline(&mut filter)
@@ -448,7 +479,7 @@ fn external_body(ui: &mut Ui, studio: &mut Studio, target: PluginTarget, r: &Res
         .auto_shrink([false, true])
         .show(ui, |ui| {
             if params.is_empty() {
-                ui.label(RichText::new("Nessun parametro").color(pal::TEXT_FAINT));
+                ui.label(RichText::new("Nessun parametro").color(pal::TEXT_FAINT()));
             }
             egui::Grid::new(("ext_params", &key))
                 .num_columns(2)
@@ -459,7 +490,7 @@ fn external_body(ui: &mut Ui, studio: &mut Studio, target: PluginTarget, r: &Res
                         let current = live_inst.param_normalized(p.id) as f32;
                         // Valore registrato nel progetto (-1 = mai toccato): decide se committare.
                         let saved = inst.params.get(&name).copied().unwrap_or(-1.0);
-                        ui.label(RichText::new(&p.name).color(pal::TEXT));
+                        ui.label(RichText::new(&p.name).color(pal::TEXT()));
                         let wid = Id::new(format!("{key}:{name}:live"));
                         let mut v = live(ui.ctx(), wid, current);
                         let text = live_inst.param_display(p.id, v as f64);
@@ -547,7 +578,7 @@ fn test_keyboard(ui: &mut Ui, studio: &mut Studio, channel: ChannelId, root: u8)
             vec2(w - 1.0, rect.height()),
         );
         let c = if hit == Some(*k) {
-            pal::ACCENT
+            pal::ACCENT()
         } else {
             Color32::from_rgb(0xe6, 0xe9, 0xec)
         };
@@ -559,6 +590,17 @@ fn test_keyboard(ui: &mut Ui, studio: &mut Studio, channel: ChannelId, root: u8)
                 ..Default::default()
             },
             c,
+        );
+        // Contorno: separa i tasti bianchi anche sullo sfondo chiaro.
+        p.rect_stroke(
+            r,
+            egui::CornerRadius {
+                sw: 3,
+                se: 3,
+                ..Default::default()
+            },
+            Stroke::new(1.0, pal::BORDER()),
+            egui::StrokeKind::Inside,
         );
         if k % 12 == 0 {
             p.text(
@@ -572,7 +614,7 @@ fn test_keyboard(ui: &mut Ui, studio: &mut Studio, channel: ChannelId, root: u8)
     }
     for (k, br) in &blacks {
         let c = if hit == Some(*k) {
-            pal::ACCENT
+            pal::ACCENT()
         } else {
             Color32::from_rgb(0x1b, 0x1e, 0x22)
         };

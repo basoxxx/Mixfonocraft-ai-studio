@@ -6,7 +6,9 @@ pub mod mixer;
 pub mod piano_roll;
 pub mod playlist;
 pub mod plugin_editor;
+pub mod samples;
 pub mod settings;
+pub mod synth_visuals;
 pub mod update_ui;
 pub mod widgets;
 

@@ -187,6 +187,7 @@ const LEFT_W: f32 = 318.0;
 
 /// Disegna il Channel Rack.
 pub fn show(ui: &mut Ui, studio: &mut Studio) {
+    let area = ui.max_rect();
     let pattern = studio.current_pattern();
     let steps = pattern.map_or(0, |p| pattern_steps(&studio.project, p));
     let pat_name = pattern
@@ -197,7 +198,7 @@ pub fn show(ui: &mut Ui, studio: &mut Studio) {
         ui.menu_button(
             RichText::new("+ Canale")
                 .font(theme::bold_font(11.5))
-                .color(pal::ACCENT),
+                .color(pal::ACCENT()),
             |ui| {
                 ui.set_min_width(220.0);
                 generator_menu(ui, studio);
@@ -218,7 +219,7 @@ pub fn show(ui: &mut Ui, studio: &mut Studio) {
             ui.label(
                 RichText::new("PASSI")
                     .font(theme::bold_font(9.5))
-                    .color(pal::TEXT_FAINT),
+                    .color(pal::TEXT_FAINT()),
             );
         }
     });
@@ -245,6 +246,10 @@ pub fn show(ui: &mut Ui, studio: &mut Studio) {
     if !ui.input(|i| i.pointer.primary_down()) {
         ui.data_mut(|d| d.remove::<bool>(Id::new("rack_paint")));
     }
+    // Campione trascinato dal browser: nuovo canale Sampler.
+    if let Some((path, _)) = crate::views::samples::drop_target(ui, area, "Rilascia: nuovo canale Sampler") {
+        crate::views::samples::add_sample_channel(studio, &path);
+    }
 }
 
 fn generator_menu(ui: &mut Ui, studio: &mut Studio) {
@@ -269,9 +274,9 @@ fn row_ui(ui: &mut Ui, studio: &mut Studio, pattern: Option<PatternId>, steps: u
     let (rect, bg_resp) = ui.allocate_exact_size(vec2(width, ROW_H), Sense::click());
     let p = ui.painter().clone();
     let bg = if selected {
-        theme::mix(pal::BG_RAISED, row.color, 0.10)
+        theme::mix(pal::BG_RAISED(), row.color, 0.10)
     } else {
-        pal::BG_RAISED
+        pal::BG_RAISED()
     };
     p.rect_filled(rect, 5.0, bg);
     p.rect_stroke(
@@ -282,7 +287,7 @@ fn row_ui(ui: &mut Ui, studio: &mut Studio, pattern: Option<PatternId>, steps: u
             if selected {
                 row.color.gamma_multiply(0.6)
             } else {
-                pal::BORDER
+                pal::BORDER()
             },
         ),
         StrokeKind::Inside,
@@ -310,7 +315,7 @@ fn row_ui(ui: &mut Ui, studio: &mut Studio, pattern: Option<PatternId>, steps: u
     let ui = &mut child;
     ui.spacing_mut().item_spacing.x = 6.0;
     // LED mute.
-    let r = widgets::led(ui, !row.muted, pal::GREEN, 16.0).on_hover_text(if row.muted {
+    let r = widgets::led(ui, !row.muted, pal::GREEN(), 16.0).on_hover_text(if row.muted {
         "Riattiva canale"
     } else {
         "Muta canale"
@@ -322,7 +327,7 @@ fn row_ui(ui: &mut Ui, studio: &mut Studio, pattern: Option<PatternId>, steps: u
     volume_knob(ui, studio, row);
     insert_box(ui, studio, row);
     name_plate(ui, studio, row, selected);
-    if widgets::icon_button(ui, Icon::Piano, false, pal::ACCENT, 24.0, "Apri nel Piano Roll").clicked() {
+    if widgets::icon_button(ui, Icon::Piano, false, pal::ACCENT(), 24.0, "Apri nel Piano Roll").clicked() {
         studio.selected_channel = Some(row.id);
         studio.view = View::PianoRoll;
     }
@@ -339,7 +344,7 @@ fn row_ui(ui: &mut Ui, studio: &mut Studio, pattern: Option<PatternId>, steps: u
 fn pan_knob(ui: &mut Ui, studio: &mut Studio, row: &Row) {
     let id = Id::new(("rack_pan", row.id.0));
     let mut v = live(ui.ctx(), id, row.pan);
-    let r = widgets::knob_ex(ui, &mut v, -1.0, 1.0, 0.0, KNOB_D, true, pal::BLUE);
+    let r = widgets::knob_ex(ui, &mut v, -1.0, 1.0, 0.0, KNOB_D, true, pal::BLUE());
     if let Some(nv) = settle(ui.ctx(), id, &r, v, row.pan) {
         studio.exec(channel_cmd(row.id, None, Some(nv), None, None));
     }
@@ -356,7 +361,7 @@ fn pan_knob(ui: &mut Ui, studio: &mut Studio, row: &Row) {
 fn volume_knob(ui: &mut Ui, studio: &mut Studio, row: &Row) {
     let id = Id::new(("rack_vol", row.id.0));
     let mut v = live(ui.ctx(), id, row.volume);
-    let r = widgets::knob_ex(ui, &mut v, 0.0, 1.25, CHANNEL_UNITY, KNOB_D, false, pal::ACCENT);
+    let r = widgets::knob_ex(ui, &mut v, 0.0, 1.25, CHANNEL_UNITY, KNOB_D, false, pal::ACCENT());
     if let Some(nv) = settle(ui.ctx(), id, &r, v, row.volume) {
         studio.exec(channel_cmd(row.id, Some(nv), None, None, None));
     }
@@ -397,20 +402,20 @@ fn name_plate(ui: &mut Ui, studio: &mut Studio, row: &Row, selected: bool) {
     let p = ui.painter();
     let hot = resp.hovered();
     let fill = if selected {
-        theme::mix(pal::BG_WIDGET, row.color, 0.28)
+        theme::mix(pal::BG_WIDGET(), row.color, 0.28)
     } else if hot {
-        pal::BG_HOVER
+        pal::BG_HOVER()
     } else {
-        pal::BG_WIDGET
+        pal::BG_WIDGET()
     };
     p.rect_filled(rect, 4.0, fill);
     p.rect_stroke(
         rect,
         4.0,
-        Stroke::new(1.0, if selected { row.color } else { pal::BORDER }),
+        Stroke::new(1.0, if selected { row.color } else { pal::BORDER() }),
         StrokeKind::Inside,
     );
-    let text_col = if row.muted { pal::TEXT_FAINT } else { pal::TEXT };
+    let text_col = if row.muted { pal::TEXT_FAINT() } else { pal::TEXT() };
     let clip = p.with_clip_rect(rect.shrink(2.0));
     clip.text(
         rect.left_center() + vec2(8.0, -5.5),
@@ -424,7 +429,7 @@ fn name_plate(ui: &mut Ui, studio: &mut Studio, row: &Row, selected: bool) {
         egui::Align2::LEFT_CENTER,
         &row.plugin,
         egui::FontId::proportional(9.0),
-        pal::TEXT_FAINT,
+        pal::TEXT_FAINT(),
     );
     if resp.clicked() {
         studio.selected_channel = Some(row.id);
@@ -489,11 +494,7 @@ fn step_strip(ui: &mut Ui, studio: &mut Studio, pattern: PatternId, row: &Row, s
         let hot = pointer.is_some_and(|pt| r.contains(pt)) && ui.rect_contains_pointer(r);
         // Gruppi da 4 alternati (come FL): tinte diverse.
         let group_dark = (s / 4) % 2 == 1;
-        let off_fill = if group_dark {
-            Color32::from_rgb(0x2e, 0x33, 0x39)
-        } else {
-            Color32::from_rgb(0x3a, 0x40, 0x47)
-        };
+        let off_fill = if group_dark { pal::BG_WIDGET() } else { pal::BG_HOVER() };
         if on {
             let v = vel.unwrap_or(0.78);
             let c = theme::mix(theme::mix(row.color, Color32::BLACK, 0.45), row.color, 0.35 + 0.65 * v);
@@ -504,7 +505,15 @@ fn step_strip(ui: &mut Ui, studio: &mut Studio, pattern: PatternId, row: &Row, s
                 Color32::from_white_alpha(70),
             );
         } else {
-            p.rect_filled(r, 3.0, if hot { pal::BG_HOVER } else { off_fill });
+            p.rect_filled(
+                r,
+                3.0,
+                if hot {
+                    theme::mix(pal::BG_HOVER(), pal::ACCENT_SOFT(), 0.3)
+                } else {
+                    off_fill
+                },
+            );
             p.rect_filled(
                 Rect::from_min_size(r.left_bottom() - vec2(-2.0, 4.0), vec2(r.width() - 4.0, 2.0)),
                 1.0,
@@ -519,13 +528,13 @@ fn step_strip(ui: &mut Ui, studio: &mut Studio, pattern: PatternId, row: &Row, s
                 if hot {
                     Color32::from_white_alpha(120)
                 } else {
-                    pal::BORDER
+                    pal::BORDER()
                 },
             ),
             StrokeKind::Inside,
         );
         if playing == Some(s) {
-            p.rect_stroke(r.expand(1.5), 4.0, Stroke::new(1.5, pal::ACCENT), StrokeKind::Outside);
+            p.rect_stroke(r.expand(1.5), 4.0, Stroke::new(1.5, pal::ACCENT()), StrokeKind::Outside);
         }
         if !hot {
             continue;
@@ -565,16 +574,12 @@ fn mini_roll(ui: &mut Ui, studio: &mut Studio, row: &Row, steps: u32) {
     let w = steps_width(steps).max(STEP_W * 16.0);
     let (rect, resp) = ui.allocate_exact_size(vec2(w, STEP_H), Sense::click());
     let p = ui.painter_at(rect);
-    p.rect_filled(rect, 3.0, pal::BG_INSET);
+    p.rect_filled(rect, 3.0, pal::BG_INSET());
     // Linee di battuta/beat.
     let beats = (steps / 4).max(1);
     for b in 1..beats {
         let x = rect.left() + rect.width() * b as f32 / beats as f32;
-        let c = if b % 4 == 0 {
-            pal::LINE
-        } else {
-            Color32::from_rgb(0x1c, 0x20, 0x24)
-        };
+        let c = if b % 4 == 0 { pal::LINE() } else { pal::GRID_A() };
         p.line_segment(
             [egui::pos2(x, rect.top()), egui::pos2(x, rect.bottom())],
             Stroke::new(1.0, c),
@@ -611,7 +616,11 @@ fn add_row(ui: &mut Ui, studio: &mut Studio, steps: u32) {
     let width = LEFT_W + 12.0 + steps_width(steps).max(STEP_W * 16.0) + 8.0;
     let (rect, resp) = ui.allocate_exact_size(vec2(width, 30.0), Sense::click());
     let p = ui.painter();
-    let c = if resp.hovered() { pal::ACCENT } else { pal::TEXT_FAINT };
+    let c = if resp.hovered() {
+        pal::ACCENT()
+    } else {
+        pal::TEXT_FAINT()
+    };
     let dash = Stroke::new(1.0, c.gamma_multiply(0.6));
     let pts = [
         rect.left_top(),

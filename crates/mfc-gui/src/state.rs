@@ -84,6 +84,8 @@ pub struct Studio {
     pub recording: bool,
     /// Registrazione delle automazioni dai controlli (vedi [`crate::automation_rec`]).
     pub auto_rec: crate::automation_rec::AutoRecState,
+    /// Preferenze dell'interfaccia (tema, pannelli, cartelle campioni) e browser dei campioni.
+    pub ui: crate::ui_settings::UiState,
     /// Backend attivo; `None` solo durante il riavvio, per rilasciare il dispositivo.
     _backend: Option<Backend>,
 }
@@ -122,6 +124,7 @@ impl Studio {
             live: LiveInput::new(handle.clone()),
             recording: false,
             auto_rec: Default::default(),
+            ui: Default::default(),
             engine: handle,
             audible,
             audio_config,
