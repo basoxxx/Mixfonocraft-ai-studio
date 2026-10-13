@@ -2,7 +2,7 @@
 //!
 //! - [`ClapBackend`]: scansione dei file `.clap` (bundle su macOS) e creazione delle istanze.
 //! - [`instance::ClapInstance`]: istanza attiva che implementa [`ExternalInstance`].
-//! - [`handlers`]: callback dell'host verso il plugin (flag atomici gestiti in `idle`).
+//! - `handlers`: callback dell'host verso il plugin (flag atomici gestiti in `idle`).
 
 mod handlers;
 mod instance;

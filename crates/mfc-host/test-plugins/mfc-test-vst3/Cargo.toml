@@ -10,3 +10,4 @@ description = "Plugin vst3 di prova per i test d'integrazione di mfc-host"
 crate-type = ["cdylib"]
 
 [dependencies]
+vst3 = "0.3"
