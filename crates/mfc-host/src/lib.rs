@@ -82,12 +82,9 @@ pub fn make_kind(format: PluginFormat, path: &std::path::Path, id: &str) -> Stri
 
 /// Scompone un kind `vst3:` / `clap:`; `None` se non è un plugin esterno valido.
 pub fn parse_kind(kind: &str) -> Option<ParsedKind> {
-    let (format, rest) = if let Some(r) = kind.strip_prefix("vst3:") {
-        (PluginFormat::Vst3, r)
-    } else if let Some(r) = kind.strip_prefix("clap:") {
-        (PluginFormat::Clap, r)
-    } else {
-        return None;
+    let (format, rest) = match kind.strip_prefix("vst3:") {
+        Some(r) => (PluginFormat::Vst3, r),
+        None => (PluginFormat::Clap, kind.strip_prefix("clap:")?),
     };
     let (path, id) = rest.rsplit_once("::")?;
     if path.is_empty() || id.is_empty() {

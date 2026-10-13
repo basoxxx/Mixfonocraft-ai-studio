@@ -69,7 +69,7 @@ impl Host {
         let backends: Vec<&dyn FormatBackend> = self.backends.iter().map(|b| b.as_ref()).collect();
         let report = scan::scan_paths(&backends, paths);
         let mut cat = report.plugins.clone();
-        cat.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+        cat.sort_by_key(|p| p.name.to_lowercase());
         *self.catalog.write() = cat;
         report
     }
