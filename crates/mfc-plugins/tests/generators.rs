@@ -305,3 +305,44 @@ fn pluck_is_in_tune_and_decays() {
         assert!(blocks < (2.0 * SR) as usize / BLOCK, "release troppo lungo");
     }
 }
+
+#[test]
+fn wavetable_lifecycles_and_pitch() {
+    for table in 0..5 {
+        check_lifecycle(ids::WAVETABLE, &[("table", table as f32)]);
+        check_lifecycle(
+            ids::WAVETABLE,
+            &[
+                ("table", table as f32),
+                ("position", 1.0),
+                ("unison", 4.0),
+                ("detune", 1.0),
+            ],
+        );
+    }
+    check_lifecycle(
+        ids::WAVETABLE,
+        &[("pos_env", 1.0), ("cutoff", 800.0), ("resonance", 1.0)],
+    );
+    // Posizione 0 del banco basic = seno puro all'altezza della nota.
+    let mut g = make(ids::WAVETABLE, &[("position", 0.0), ("sustain", 1.0)]);
+    g.note_on(NoteOn::simple(1, 69, 1.0));
+    let (l, _) = render(g.as_mut(), 1.0);
+    let f = zero_cross_freq(&l[4800..]);
+    assert!((f - 440.0).abs() < 4.4, "{f}");
+    // Il morphing verso la saw arricchisce lo spettro.
+    let bright = |pos: f32| {
+        let mut g = make(ids::WAVETABLE, &[("position", pos), ("sustain", 1.0)]);
+        g.note_on(NoteOn::simple(1, 57, 1.0));
+        let (l, _) = render(g.as_mut(), 0.2);
+        let e: f32 = l.iter().map(|x| x * x).sum();
+        let d: f32 = l.windows(2).map(|w| (w[1] - w[0]).powi(2)).sum();
+        d / e.max(1e-12)
+    };
+    assert!(bright(0.66) > 3.0 * bright(0.0));
+    // Note altissime restano pulite: niente energia oltre il limite (aliasing) → picco contenuto.
+    let mut g = make(ids::WAVETABLE, &[("position", 1.0), ("sustain", 1.0)]);
+    g.note_on(NoteOn::simple(1, 120, 1.0));
+    let (l, _) = render(g.as_mut(), 0.1);
+    assert!(l.iter().all(|x| x.is_finite() && x.abs() < 2.0));
+}

@@ -191,3 +191,95 @@ fn saved_ui_state_is_restored() {
     assert!(!other.song_mode);
     assert_eq!(other.path.as_deref(), Some(path.as_path()));
 }
+
+#[test]
+fn recorded_notes_land_in_the_current_pattern() {
+    let mut studio = Studio::new(demo_project());
+    let pattern = studio.current_pattern().unwrap();
+    let channel = studio.selected_channel.unwrap();
+    let count = |s: &Studio| {
+        s.project
+            .pattern(pattern)
+            .unwrap()
+            .notes
+            .get(&channel)
+            .map_or(0, Vec::len)
+    };
+    let before = count(&studio);
+    let plen = studio
+        .project
+        .pattern(pattern)
+        .unwrap()
+        .effective_length(&studio.project.time) as f64;
+
+    // Quantizzazione a 1/16: 50 tick → step 2 (48), durata conservata.
+    studio.set_recording(true);
+    assert!(!studio.song_mode, "la registrazione passa in modalità Pattern");
+    assert!(studio.record_note(70, 50.0, 120.0, 0.8));
+    // Nota tenuta a cavallo del loop: inizio vicino alla fine, fine dopo la ripartenza.
+    assert!(studio.record_note(72, plen - 4.0, 20.0, 0.8));
+    // Senza quantizzazione la posizione resta quella suonata.
+    studio.record_quantize = false;
+    assert!(studio.record_note(74, 101.0, 140.0, 0.5));
+
+    let notes = &studio.project.pattern(pattern).unwrap().notes[&channel];
+    assert_eq!(notes.len(), before + 3);
+    let find = |k: u8| notes.iter().find(|n| n.key == k).unwrap();
+    assert_eq!((find(70).position, find(70).length), (48, 70));
+    // plen-4 si arrotonda allo step oltre la fine → ritorna a 0; durata 24 (4 + 20).
+    assert_eq!((find(72).position, find(72).length), (0, 24));
+    assert_eq!((find(74).position, find(74).length), (101, 39));
+    assert!(studio.dirty);
+    // Ogni nota registrata è annullabile.
+    studio.undo();
+    assert_eq!(count(&studio), before + 2);
+}
+
+#[test]
+fn typing_keyboard_layout_matches_fl_studio() {
+    use egui::Key;
+    use mfc_gui::state::typing_key_offset;
+    assert_eq!(typing_key_offset(Key::Z), Some(0));
+    assert_eq!(typing_key_offset(Key::S), Some(1));
+    assert_eq!(typing_key_offset(Key::M), Some(11));
+    assert_eq!(typing_key_offset(Key::Q), Some(12));
+    assert_eq!(typing_key_offset(Key::Num2), Some(13));
+    assert_eq!(typing_key_offset(Key::P), Some(28));
+    assert_eq!(typing_key_offset(Key::L), None, "L resta la scorciatoia Song/Pattern");
+    assert_eq!(typing_key_offset(Key::Space), None);
+}
+
+#[test]
+fn playing_notes_while_recording_writes_them() {
+    let mut studio = Studio::new(Project::new("rec"));
+    let mut p = studio.project.clone();
+    let ch = add_channel(&mut p, "Lead", "mfc.3xosc", 1);
+    studio.replace_project(p, None);
+    studio.selected_channel = Some(ch);
+    let pattern = studio.current_pattern().unwrap();
+    studio.set_recording(true);
+    // Senza play la nota suona soltanto.
+    studio.play_note_on(65, 0.8);
+    studio.play_note_off(65);
+    assert!(studio
+        .project
+        .pattern(pattern)
+        .unwrap()
+        .notes
+        .get(&ch)
+        .is_none_or(Vec::is_empty));
+    studio.toggle_play();
+    let t0 = std::time::Instant::now();
+    while studio.engine.shared.position() <= 0.0 && t0.elapsed() < std::time::Duration::from_secs(5) {
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    studio.play_note_on(67, 0.8);
+    std::thread::sleep(std::time::Duration::from_millis(200));
+    studio.play_note_off(67);
+    studio.stop();
+    let notes = &studio.project.pattern(pattern).unwrap().notes[&ch];
+    assert_eq!(notes.len(), 1);
+    // 200 ms a 140 BPM ≈ 45 tick (margine ampio per lo scheduling del test).
+    assert!((10..200).contains(&notes[0].length), "durata {}", notes[0].length);
+    assert_eq!(notes[0].key, 67);
+}

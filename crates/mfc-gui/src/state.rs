@@ -45,8 +45,22 @@ pub struct Studio {
     pub engine: EngineHandle,
     /// `true` se l'audio esce su una scheda reale.
     pub audible: bool,
+    /// Registrazione armata: le note suonate durante il play finiscono nel pattern.
+    pub recording: bool,
+    /// Quantizza l'inizio delle note registrate alla griglia di 1/16.
+    pub record_quantize: bool,
+    pub metronome: bool,
+    /// Tastiera del computer come piano (righe Z…M e Q…P, come in FL Studio).
+    pub typing_keyboard: bool,
+    /// Ottava della riga bassa della tastiera (5 → Z = C5 = 60).
+    pub keyboard_octave: u8,
+    /// Note tenute: (tono, inizio in tick o `None` se non in registrazione, velocity).
+    held: Vec<(u8, Option<f64>, f32)>,
     _backend: Backend,
 }
+
+/// Velocity delle note suonate dalla tastiera del computer.
+pub const TYPING_VELOCITY: f32 = 0.8;
 
 impl Studio {
     pub fn new(project: Project) -> Self {
@@ -69,6 +83,12 @@ impl Studio {
             },
             engine: handle,
             audible,
+            recording: false,
+            record_quantize: true,
+            metronome: false,
+            typing_keyboard: true,
+            keyboard_octave: 5,
+            held: Vec::new(),
             _backend: backend,
         };
         s.apply_initial_view();
@@ -183,6 +203,97 @@ impl Studio {
         } else {
             self.engine.play();
         }
+    }
+
+    pub fn set_metronome(&mut self, on: bool) {
+        self.metronome = on;
+        self.engine.set_metronome(on);
+    }
+
+    /// Arma o disarma la registrazione. La registrazione scrive nel pattern selezionato,
+    /// quindi richiede la modalità Pattern.
+    pub fn set_recording(&mut self, on: bool) {
+        if on && self.song_mode {
+            self.set_song_mode(false);
+            self.status = "Registrazione: passato in modalità Pattern".into();
+        }
+        self.recording = on;
+        if !on {
+            // Le note ancora tenute non vengono scritte.
+            for h in &mut self.held {
+                h.1 = None;
+            }
+        }
+    }
+
+    /// Nota premuta (tastiera del computer o MIDI): anteprima sul canale selezionato e,
+    /// se si registra durante il play, inizio della nota alla posizione corrente.
+    pub fn play_note_on(&mut self, key: u8, velocity: f32) {
+        let Some(ch) = self.selected_channel else { return };
+        if self.held.iter().any(|h| h.0 == key) {
+            return;
+        }
+        self.engine.preview_on(ch, key, velocity);
+        let start = (self.recording && self.engine.shared.is_playing()).then(|| self.engine.shared.position());
+        self.held.push((key, start, velocity));
+    }
+
+    /// Nota rilasciata: fine dell'anteprima e, se registrata, scrittura nel pattern.
+    pub fn play_note_off(&mut self, key: u8) {
+        let Some(i) = self.held.iter().position(|h| h.0 == key) else {
+            return;
+        };
+        let (key, start, velocity) = self.held.remove(i);
+        if let Some(ch) = self.selected_channel {
+            self.engine.preview_off(ch, key);
+        }
+        if let Some(start) = start {
+            let end = self.engine.shared.position();
+            self.record_note(key, start, end, velocity);
+        }
+    }
+
+    /// Scrive una nota registrata nel pattern corrente: `start` e `end` sono posizioni del
+    /// transport in tick (in modalità Pattern locali al pattern, che va in loop).
+    pub fn record_note(&mut self, key: u8, start: f64, end: f64, velocity: f32) -> bool {
+        let (Some(pattern), Some(channel)) = (self.current_pattern(), self.selected_channel) else {
+            return false;
+        };
+        let Some(pat) = self.project.pattern(pattern) else {
+            return false;
+        };
+        let tb = self.project.time;
+        let plen = pat.effective_length(&tb).max(1) as f64;
+        let step = tb.ticks_per_step() as f64;
+        let mut len = end - start;
+        if len < 0.0 {
+            // Il loop del pattern è ripartito mentre la nota era tenuta.
+            len += plen;
+        }
+        let mut pos = start.rem_euclid(plen);
+        if self.record_quantize {
+            pos = (pos / step).round() * step;
+            if pos >= plen {
+                pos = 0.0;
+            }
+        }
+        let note = mfc_core::Note::new(pos.round() as u64, (len.round() as u64).max(1), key.min(127), velocity);
+        let ok = self
+            .exec(Command::AddNotes {
+                pattern,
+                channel,
+                notes: vec![note],
+            })
+            .is_some();
+        if ok {
+            self.status = format!("Registrata {} a {:.0}", note_label(key), pos);
+        }
+        ok
+    }
+
+    /// Note attualmente tenute.
+    pub fn held_keys(&self) -> impl Iterator<Item = u8> + '_ {
+        self.held.iter().map(|h| h.0)
     }
 
     pub fn stop(&mut self) {
@@ -301,6 +412,52 @@ impl Studio {
         self.status = format!("Render {:.1} s → {}", out.mix.seconds(), path.display());
         Ok(())
     }
+}
+
+/// Nome nota stile FL Studio (C5 = 60).
+pub fn note_label(key: u8) -> String {
+    const NAMES: [&str; 12] = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+    format!("{}{}", NAMES[(key % 12) as usize], key / 12)
+}
+
+/// Semitono (dalla C della riga bassa) associato a un tasto della tastiera del computer,
+/// con la disposizione di FL Studio: Z S X D C V G B H N J M , per l'ottava bassa,
+/// Q 2 W 3 E R 5 T 6 Y 7 U I 9 O 0 P per quella alta.
+pub fn typing_key_offset(key: egui::Key) -> Option<u8> {
+    use egui::Key::*;
+    Some(match key {
+        Z => 0,
+        S => 1,
+        X => 2,
+        D => 3,
+        C => 4,
+        V => 5,
+        G => 6,
+        B => 7,
+        H => 8,
+        N => 9,
+        J => 10,
+        M => 11,
+        Comma => 12,
+        Q => 12,
+        Num2 => 13,
+        W => 14,
+        Num3 => 15,
+        E => 16,
+        R => 17,
+        Num5 => 18,
+        T => 19,
+        Num6 => 20,
+        Y => 21,
+        Num7 => 22,
+        U => 23,
+        I => 24,
+        Num9 => 25,
+        O => 26,
+        Num0 => 27,
+        P => 28,
+        _ => return None,
+    })
 }
 
 /// Progetto letto da file.

@@ -47,6 +47,8 @@ pub enum EngineCommand {
         key: u8,
     },
     AllNotesOff,
+    /// Click del metronomo sui beat (solo durante la riproduzione).
+    SetMetronome(bool),
 }
 
 /// Stato condiviso letto da GUI/MCP (atomics, aggiornati dal thread audio).
@@ -162,6 +164,9 @@ impl EngineHandle {
     pub fn all_notes_off(&self) -> bool {
         self.send(EngineCommand::AllNotesOff)
     }
+    pub fn set_metronome(&self, on: bool) -> bool {
+        self.send(EngineCommand::SetMetronome(on))
+    }
     pub fn sample_rate(&self) -> f32 {
         self.sample_rate
     }
@@ -202,7 +207,21 @@ pub struct Engine {
     key_r: Vec<[f32; CHUNK]>,
     /// Cattura post-fader per insert (solo render offline degli stem).
     pub(crate) capture: Option<Vec<(Vec<f32>, Vec<f32>)>>,
+    metronome: bool,
+    click: Click,
 }
+
+/// Stato del click del metronomo: sinusoide breve con decadimento esponenziale.
+#[derive(Clone, Copy, Default)]
+struct Click {
+    /// Campioni dall'inizio del click (`None` = inattivo).
+    t: Option<u32>,
+    freq: f32,
+    amp: f32,
+}
+
+/// Durata del click in secondi.
+const CLICK_SECONDS: f32 = 0.06;
 
 impl Engine {
     /// Crea motore e handle a partire da un progetto.
@@ -235,6 +254,8 @@ impl Engine {
             key_l: vec![[0.0; CHUNK]; n],
             key_r: vec![[0.0; CHUNK]; n],
             capture: None,
+            metronome: false,
+            click: Click::default(),
         };
         shared.tempo_bits.store(engine.tempo.to_bits(), Ordering::Relaxed);
         (
@@ -306,6 +327,13 @@ impl Engine {
     }
     pub fn set_loop(&mut self, range: Option<(f64, f64)>) {
         self.loop_range = range.filter(|(a, b)| b > a);
+    }
+    /// Attiva il click del metronomo (escluso dal render offline salvo richiesta esplicita).
+    pub fn set_metronome(&mut self, on: bool) {
+        self.metronome = on;
+        if !on {
+            self.click.t = None;
+        }
     }
 
     /// Installa un nuovo stato compilato riusando generatori/effetti compatibili.
@@ -386,6 +414,12 @@ impl Engine {
                 EngineCommand::Install(p) => self.install(p),
                 EngineCommand::PreviewOn { channel, key, velocity } => self.preview_on(channel, key, velocity),
                 EngineCommand::PreviewOff { channel, key } => self.preview_off(channel, key),
+                EngineCommand::SetMetronome(on) => {
+                    self.metronome = on;
+                    if !on {
+                        self.click.t = None;
+                    }
+                }
                 EngineCommand::AllNotesOff => {
                     self.release_all();
                     for c in self.prep.channels.iter_mut() {
@@ -435,7 +469,11 @@ impl Engine {
                     }
                 }
             }
+            let start = self.pos;
             self.render_chunk(&mut left[done..done + len], &mut right[done..done + len]);
+            if self.metronome {
+                self.add_click(&mut left[done..done + len], &mut right[done..done + len], start);
+            }
             if self.playing {
                 self.pos += len as f64 / self.samples_per_tick();
                 self.wrap_loop();
@@ -445,6 +483,46 @@ impl Engine {
         self.shared.playing.store(self.playing, Ordering::Relaxed);
         self.shared.position_bits.store(self.pos.to_bits(), Ordering::Relaxed);
         self.shared.tempo_bits.store(self.tempo.to_bits(), Ordering::Relaxed);
+    }
+
+    /// Somma il click del metronomo al sotto-blocco che inizia al tick `start`.
+    /// Accento (nota più alta) sul primo beat della battuta.
+    fn add_click(&mut self, out_l: &mut [f32], out_r: &mut [f32], start: f64) {
+        let sr = self.prep.sample_rate;
+        let len = out_l.len();
+        // Inizio di un nuovo click dentro questo sotto-blocco.
+        let mut trigger = None;
+        if self.playing {
+            let tpb = self.prep.time.ticks_per_beat().max(1) as f64;
+            let spt = self.samples_per_tick();
+            // Tolleranza: dopo molti sotto-blocchi la posizione può superare il confine di un soffio.
+            let beat = (start / tpb - 1e-6).ceil();
+            let at = ((beat * tpb - start) * spt).round().max(0.0);
+            if at >= 0.0 && (at as usize) < len {
+                let beats_per_bar = (self.prep.time.ticks_per_bar() as f64 / tpb).round().max(1.0);
+                let accent = (beat % beats_per_bar).abs() < 0.5;
+                trigger = Some((at as usize, accent));
+            }
+        }
+        let total = (CLICK_SECONDS * sr) as u32;
+        let decay = -1.0 / (0.012 * sr);
+        for i in 0..len {
+            if let Some((at, accent)) = trigger {
+                if i == at {
+                    self.click = Click {
+                        t: Some(0),
+                        freq: if accent { 1760.0 } else { 1320.0 },
+                        amp: if accent { 0.5 } else { 0.32 },
+                    };
+                }
+            }
+            let Some(t) = self.click.t else { continue };
+            let tf = t as f32;
+            let v = self.click.amp * (std::f32::consts::TAU * self.click.freq * tf / sr).sin() * (tf * decay).exp();
+            out_l[i] += v;
+            out_r[i] += v;
+            self.click.t = (t + 1 < total).then_some(t + 1);
+        }
     }
 
     /// Prossimo istante (tick) in cui succede qualcosa: note on/off o fine loop.

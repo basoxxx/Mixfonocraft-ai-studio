@@ -14,6 +14,7 @@ const ALL_IDS: &[&str] = &[
     ids::SILENT,
     ids::FM,
     ids::PLUCK,
+    ids::WAVETABLE,
     ids::EQ,
     ids::COMPRESSOR,
     ids::LIMITER,

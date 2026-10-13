@@ -26,6 +26,7 @@ pub mod ids {
     pub const SILENT: &str = "mfc.silent";
     pub const FM: &str = "mfc.fm";
     pub const PLUCK: &str = "mfc.pluck";
+    pub const WAVETABLE: &str = "mfc.wavetable";
     // Effetti
     pub const EQ: &str = "mfc.eq";
     pub const COMPRESSOR: &str = "mfc.compressor";
@@ -98,6 +99,7 @@ static REGISTRY: &[&PluginDescriptor] = &[
     &generators::supersaw::DESCRIPTOR,
     &generators::fm::DESCRIPTOR,
     &generators::pluck::DESCRIPTOR,
+    &generators::wavetable::DESCRIPTOR,
     &generators::silent::DESCRIPTOR,
     &effects::eq::DESCRIPTOR,
     &effects::compressor::DESCRIPTOR,

@@ -231,6 +231,7 @@ impl StudioApp {
                     }
                 }
             }
+            self.typing_piano(i, typing);
             if typing {
                 return;
             }
@@ -255,6 +256,56 @@ impl StudioApp {
                 self.studio.set_song_mode(song);
             }
         });
+    }
+
+    /// Tastiera del computer come piano: note sul canale selezionato, `-`/`+` per l'ottava.
+    /// I rilasci si gestiscono sempre (anche con un campo di testo attivo), per non lasciare note appese.
+    fn typing_piano(&mut self, i: &egui::InputState, typing: bool) {
+        if !self.studio.typing_keyboard {
+            return;
+        }
+        let blocked = typing || i.modifiers.command || i.modifiers.ctrl || i.modifiers.alt;
+        for ev in &i.events {
+            let egui::Event::Key {
+                key, pressed, repeat, ..
+            } = ev
+            else {
+                continue;
+            };
+            if *pressed && (blocked || *repeat) {
+                continue;
+            }
+            match key {
+                Key::Minus if *pressed => {
+                    self.studio.keyboard_octave = self.studio.keyboard_octave.saturating_sub(1);
+                    self.studio.status = format!("Ottava della tastiera: C{}", self.studio.keyboard_octave);
+                }
+                Key::Equals | Key::Plus if *pressed => {
+                    self.studio.keyboard_octave = (self.studio.keyboard_octave + 1).min(9);
+                    self.studio.status = format!("Ottava della tastiera: C{}", self.studio.keyboard_octave);
+                }
+                k => {
+                    let Some(off) = crate::state::typing_key_offset(*k) else {
+                        continue;
+                    };
+                    let note = (self.studio.keyboard_octave as u16 * 12 + off as u16).min(127) as u8;
+                    if *pressed {
+                        self.studio.play_note_on(note, crate::state::TYPING_VELOCITY);
+                    } else {
+                        // Il rilascio chiude la nota premuta con quel tasto, anche se l'ottava è cambiata.
+                        let held: Vec<u8> = self.studio.held_keys().filter(|h| h % 12 == note % 12).collect();
+                        let target = if held.contains(&note) {
+                            Some(note)
+                        } else {
+                            held.first().copied()
+                        };
+                        if let Some(n) = target {
+                            self.studio.play_note_off(n);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     fn top_bar(&mut self, ui: &mut egui::Ui) {
@@ -362,7 +413,15 @@ impl StudioApp {
                 }
             });
             ui.menu_button(RichText::new("Modifica").color(pal::TEXT_DIM), |ui| {
-                ui.set_min_width(200.0);
+                ui.set_min_width(260.0);
+                ui.checkbox(&mut self.studio.typing_keyboard, "Tastiera del computer come piano")
+                    .on_hover_text("Z…M e Q…P suonano il canale selezionato; - e + cambiano ottava");
+                ui.checkbox(&mut self.studio.record_quantize, "Quantizza la registrazione (1/16)");
+                let mut met = self.studio.metronome;
+                if ui.checkbox(&mut met, "Metronomo").changed() {
+                    self.studio.set_metronome(met);
+                }
+                ui.separator();
                 if ui
                     .add_enabled(
                         self.studio.history.can_undo(),
@@ -396,16 +455,23 @@ impl StudioApp {
             if icon_button(ui, Icon::Stop, false, pal::TEXT, 32.0, "Stop").clicked() {
                 self.studio.stop();
             }
-            ui.add_enabled_ui(false, |ui| {
-                icon_button(
-                    ui,
-                    Icon::Record,
-                    false,
-                    pal::RED,
-                    32.0,
-                    "Registrazione (non ancora disponibile)",
-                );
-            });
+            let rec = self.studio.recording;
+            if icon_button(
+                ui,
+                Icon::Record,
+                rec,
+                pal::RED,
+                32.0,
+                "Registrazione: con il play, le note suonate (tastiera del computer) vanno nel pattern selezionato",
+            )
+            .clicked()
+            {
+                self.studio.set_recording(!rec);
+            }
+            let met = self.studio.metronome;
+            if icon_button(ui, Icon::Metronome, met, pal::ACCENT, 28.0, "Metronomo").clicked() {
+                self.studio.set_metronome(!met);
+            }
             toolbar_sep(ui, h);
 
             // Tempo: trascina in verticale, rilascio = commit.

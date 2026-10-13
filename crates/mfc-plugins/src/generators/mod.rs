@@ -9,6 +9,7 @@ pub mod pluck;
 pub mod sampler;
 pub mod silent;
 pub mod supersaw;
+pub mod wavetable;
 
 use crate::api::{Generator, PluginDescriptor};
 use crate::ids;
@@ -38,6 +39,7 @@ pub fn create(inst: &PluginInstance) -> Box<dyn Generator> {
         ids::SUPERSAW => Box::new(supersaw::Supersaw::new()),
         ids::FM => Box::new(fm::Fm::new()),
         ids::PLUCK => Box::new(pluck::Pluck::new()),
+        ids::WAVETABLE => Box::new(wavetable::Wavetable::new()),
         _ => Box::new(silent::Silent::new()),
     }
 }

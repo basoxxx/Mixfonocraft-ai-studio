@@ -29,14 +29,16 @@ affiliato né approvato da Image-Line; FL Studio è un marchio dei rispettivi ti
 - **Step sequencer** a 1/16 e **piano roll** con quantizzazione, trasposizione e velocity.
 - **Playlist** su 500 tracce con clip di pattern, audio e automazione, ripetizioni e mute.
 - **Mixer** con master e 125 insert, 10 slot effetto per insert, mandate, mute, solo, fase e
-  scambio L/R, con 27 plugin nativi (10 generatori, 17 effetti), compressore con sidechain e
+  scambio L/R, con 28 plugin nativi (11 generatori, 17 effetti), compressore con sidechain e
   volumi anche in dB.
 
   | Generatori | Effetti |
   |---|---|
-  | Sampler, Audio Clip, 3xOsc, BooBass, Kick, Drum Synth, Supersaw, **FM2** (FM a 2 operatori), **Pluck** (corda Karplus-Strong), Silent | EQ, Compressor (sidechain), Limiter, Gate, Reverb, Delay, Chorus, Flanger, Phaser, Distortion, Bitcrusher, Filter, Stereo, Gain, **Ducker** (volume shaper a tempo), **Auto Pan** (pan/tremolo a tempo), **Transient Shaper** |
+  | Sampler, Audio Clip, 3xOsc, BooBass, Kick, Drum Synth, Supersaw, **FM2** (FM a 2 operatori), **Pluck** (corda Karplus-Strong), **Wavetable** (5 banchi con morphing e unisono), Silent | EQ, Compressor (sidechain), Limiter, Gate, Reverb, Delay, Chorus, Flanger, Phaser, Distortion, Bitcrusher, Filter, Stereo, Gain, **Ducker** (volume shaper a tempo), **Auto Pan** (pan/tremolo a tempo), **Transient Shaper** |
 - **Automazioni** su volume, pan, pitch, tempo, parametri di canale ed effetti, con curve a tensione.
-- **Transport** in modalità Song o Pattern, con swing globale.
+- **Transport** in modalità Song o Pattern, con swing globale e metronomo.
+- **Registrazione** delle note dalla tastiera del computer (come piano, layout di FL Studio)
+  nel pattern selezionato, con quantizzazione opzionale a 1/16.
 - **Render** offline in WAV (16 o 24 bit intero, 32 bit float), con normalizzazione e stem per insert;
   misure di picco, true peak, RMS sulle parti attive, loudness EBU R128 (LUFS) e riduzione del limiter.
 - **Formati**: progetti nativi `.mfc` (JSON), import ed export `.flp`, import ed export MIDI (`.mid`).
@@ -200,6 +202,16 @@ Scorciatoie, in stile FL Studio:
 | `Ctrl+Z` | Annulla (`Cmd` su macOS) |
 | `Ctrl+Y` | Ripristina |
 | `Ctrl+S` | Salva (chiede il nome se il progetto non ha ancora un file) |
+| `Z S X D C V G B H N J M ,` | Tastiera del computer come piano: ottava bassa (Z = C dell'ottava scelta) |
+| `Q 2 W 3 E R 5 T 6 Y 7 U I 9 O 0 P` | Ottava alta |
+| `-` / `+` | Ottava della tastiera giù / su (default C5) |
+
+**Registrazione.** Con il pulsante Rec (cerchio rosso) armato e il play attivo, le note suonate
+con la tastiera del computer vengono scritte nel pattern selezionato, sul canale selezionato,
+alla posizione del transport. La registrazione lavora in modalità Pattern (il pattern va in loop:
+una nota tenuta a cavallo del loop mantiene la durata giusta). Ogni nota è un passo di undo.
+Dal menu **Modifica** si attivano o disattivano la tastiera come piano, la quantizzazione a 1/16
+dell'inizio delle note e il metronomo (anche dal pulsante accanto a Rec; accento sul primo beat).
 
 ## Server MCP
 

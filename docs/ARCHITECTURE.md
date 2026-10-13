@@ -169,7 +169,10 @@ campioni:
 4. renderizza il sotto-blocco (`render_chunk`): i generatori sommano nei buffer del loro
    insert, poi gli insert vengono processati nell'ordine topologico con effetti, fader, pan,
    solo e mandate;
-5. avanza la posizione in tick e gestisce il loop.
+5. se il metronomo è attivo (`set_metronome`, comandato dalla GUI), somma il click sui beat
+   che cadono nel sotto-blocco, con accento sul primo beat della battuta; il render offline
+   non lo include;
+6. avanza la posizione in tick e gestisce il loop.
 
 Le modalità sono `PlayMode::Song` (brano dalla Playlist) e `PlayMode::Pattern(id)` (loop di
 un pattern, come il pulsante PAT). In Song, `set_loop` definisce un loop opzionale: è
@@ -205,7 +208,7 @@ Definito in `crates/mfc-plugins/src/api.rs`.
   dipendenze sidechain; l'uscita degli effetti dell'insert sorgente, prima del fader, viene
   copiata in un buffer chiave letto dall'effetto. Un sidechain la cui sorgente non precede
   l'insert (ciclo) viene disattivato.
-- **Registro**: `mfc_plugins::registry()` elenca i 27 descrittori nativi (10 generatori e 17
+- **Registro**: `mfc_plugins::registry()` elenca i 28 descrittori nativi (11 generatori e 17
   effetti). `default_instance(id)` costruisce un'istanza con i default, `create_generator` e
   `create_effect` istanziano il DSP applicando i parametri.
 - **Plugin sconosciuti**: un canale con un plugin non nativo diventa un generatore silenzioso.

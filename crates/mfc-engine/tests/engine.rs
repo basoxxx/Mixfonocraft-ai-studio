@@ -357,3 +357,37 @@ fn wav_writer_roundtrip() {
     assert_eq!(stems, 1 + out.stems.len());
     std::fs::remove_dir_all(dir).ok();
 }
+
+#[test]
+fn metronome_clicks_on_every_beat_with_accent() {
+    // Progetto vuoto: l'unico suono è il click.
+    let mut p = Project::new("click");
+    p.tempo = 120.0;
+    let sr = 48_000.0;
+    let (mut e, _h) = Engine::new(&p, sr);
+    e.set_mode(PlayMode::Pattern(p.patterns[0].id));
+    e.set_metronome(true);
+    e.play();
+    // Due secondi = 4 beat a 120 BPM (una battuta).
+    let n = 96_000;
+    let (mut l, mut r) = (vec![0.0f32; n], vec![0.0f32; n]);
+    for (bl, br) in l.chunks_mut(512).zip(r.chunks_mut(512)) {
+        e.process(bl, br);
+    }
+    let beat = 24_000;
+    let onset = |from: usize| (from..from + 2000).find(|&i| l[i].abs() > 1e-3).expect("click");
+    for k in 0..4 {
+        let at = onset(k * beat);
+        assert!(at - k * beat <= 2, "click {k} in ritardo: {}", at - k * beat);
+    }
+    let peak = |from: usize| l[from..from + 2000].iter().fold(0f32, |m, x| m.max(x.abs()));
+    assert!(peak(0) > peak(beat) * 1.3, "accento sul primo beat");
+    // Silenzio tra un click e l'altro.
+    assert!(l[5000..beat - 10].iter().all(|x| x.abs() < 1e-6));
+    // Fermo: nessun click.
+    e.stop();
+    let (mut l, mut r) = (vec![0.0f32; 48_000], vec![0.0f32; 48_000]);
+    e.process(&mut l[..4096], &mut r[..4096]);
+    e.process(&mut l[4096..], &mut r[4096..]);
+    assert!(l[4000..].iter().all(|x| x.abs() < 1e-6));
+}
