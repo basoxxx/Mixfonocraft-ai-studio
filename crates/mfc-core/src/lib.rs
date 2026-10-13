@@ -4,11 +4,13 @@
 //! dell'architettura di FL Studio (Channel Rack, Step Sequencer, Piano Roll,
 //! Playlist, Mixer, automazioni), più il sistema di [`Command`] con undo/redo.
 
+pub mod automation_rec;
 pub mod command;
 pub mod history;
 pub mod project;
 pub mod time;
 
+pub use automation_rec::{AutomationRecorder, Thinning};
 pub use command::{Command, NoteFilter, Outcome};
 pub use history::History;
 pub use project::*;

@@ -336,3 +336,41 @@ fn param_saved_while_engine_paused() {
     let p = peak(&run(inst.as_ref(), &[], 4, 256));
     assert!((p - 0.75).abs() < 0.02, "picco {p}");
 }
+
+/// Nota 0: il plugin di prova la tratta come una modifica del gain dalla sua GUI.
+fn gui_edit(velocity: f32) -> MidiEvent {
+    MidiEvent::NoteOn {
+        offset: 0,
+        key: 0,
+        velocity,
+        note_id: 9,
+    }
+}
+
+#[test]
+fn gui_param_edits_are_reported_once() {
+    let h = host();
+    let inst = create(&h, SYNTH_ID, "synth_gui_edit");
+    assert!(inst.take_param_changes().is_empty());
+    // I cambi fatti dall'host non sono modifiche della GUI.
+    inst.set_param_normalized(0, 0.8);
+    run(inst.as_ref(), &[], 2, 256);
+    assert!(inst.take_param_changes().is_empty());
+
+    run(inst.as_ref(), &[gui_edit(0.25)], 1, 256);
+    let changes = inst.take_param_changes();
+    assert_eq!(changes.len(), 1, "{changes:?}");
+    assert_eq!(changes[0].0, 0);
+    assert!((changes[0].1 - 0.25).abs() < 1e-6, "{changes:?}");
+    assert!((inst.param_normalized(0) - 0.25).abs() < 1e-6);
+    // Svuotata alla lettura.
+    assert!(inst.take_param_changes().is_empty());
+
+    // Dall'host, per instance_id, solo l'ultimo valore.
+    run(inst.as_ref(), &[gui_edit(0.5)], 1, 256);
+    run(inst.as_ref(), &[gui_edit(0.75)], 1, 256);
+    let all = h.take_param_changes();
+    assert_eq!(all.len(), 1, "{all:?}");
+    assert_eq!(all[0].0, "synth_gui_edit");
+    assert!((all[0].2 - 0.75).abs() < 1e-6);
+}

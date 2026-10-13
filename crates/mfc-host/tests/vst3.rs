@@ -362,3 +362,41 @@ fn prepare_and_teardown() {
     // Bundle inesistente → errore pulito.
     assert!(Vst3Backend::new().scan(Path::new("/nonexistent/X.vst3")).is_err());
 }
+
+/// Nota 0: il plugin di prova la tratta come un `performEdit` del gain dalla sua GUI.
+fn gui_edit(velocity: f32) -> MidiEvent {
+    MidiEvent::NoteOn {
+        offset: 0,
+        key: 0,
+        velocity,
+        note_id: 9,
+    }
+}
+
+#[test]
+fn gui_param_edits_are_reported_once() {
+    let host = host();
+    let info = find("MFC Test Synth");
+    let inst = instance(&host, &info, "synth_gui_edit");
+    assert!(inst.take_param_changes().is_empty());
+    // I cambi dell'host non sono modifiche della GUI.
+    inst.set_param_normalized(0, 0.8);
+    render(&*inst, &[], 2, 128);
+    inst.idle();
+    assert!(inst.take_param_changes().is_empty());
+
+    render(&*inst, &[gui_edit(0.25)], 1, 128);
+    let changes = inst.take_param_changes();
+    assert_eq!(changes.len(), 1, "{changes:?}");
+    assert_eq!(changes[0].0, 0);
+    assert!((changes[0].1 - 0.25).abs() < 1e-6, "{changes:?}");
+    assert!(inst.take_param_changes().is_empty());
+
+    // Dall'host, per instance_id, solo l'ultimo valore.
+    render(&*inst, &[gui_edit(0.5)], 1, 128);
+    render(&*inst, &[gui_edit(0.75)], 1, 128);
+    let all = host.take_param_changes();
+    assert_eq!(all.len(), 1, "{all:?}");
+    assert_eq!(all[0].0, "synth_gui_edit");
+    assert!((all[0].2 - 0.75).abs() < 1e-6);
+}

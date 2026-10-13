@@ -6,6 +6,9 @@
 //!   `velocity * gain`; parametro 0 "Gain" (default 0.5); stato = gain (f64 LE).
 //! - "MFC Test Gain" (`Fx`): ingresso stereo moltiplicato per il parametro 0 "Gain"
 //!   (default 1.0, lineare = normalizzato).
+//!
+//! Solo test: nel synth una nota con tasto [`GUI_EDIT_KEY`] non suona ma imposta il gain
+//! alla sua velocity tramite `IComponentHandler::performEdit`, come farebbe la GUI.
 
 #![allow(non_snake_case)]
 #![allow(clippy::missing_safety_doc)]
@@ -18,7 +21,7 @@ use std::sync::Mutex;
 
 use vst3::Steinberg::Vst::*;
 use vst3::Steinberg::*;
-use vst3::{uid, Class, ComRef, ComWrapper};
+use vst3::{uid, Class, ComPtr, ComRef, ComWrapper};
 
 /// Class id del synth.
 pub const SYNTH_CID: TUID = uid(0x4D464354, 0x53796E74, 0x68000000, 0x00000001);
@@ -26,6 +29,9 @@ pub const SYNTH_CID: TUID = uid(0x4D464354, 0x53796E74, 0x68000000, 0x00000001);
 pub const GAIN_CID: TUID = uid(0x4D464354, 0x4761696E, 0x00000000, 0x00000002);
 
 const VENDOR: &str = "Mixfonocraft Test";
+
+/// Tasto della nota che simula una modifica del gain dalla GUI del plugin.
+pub const GUI_EDIT_KEY: i16 = 0;
 
 fn copy_cstring(src: &str, dst: &mut [c_char]) {
     let n = src.len().min(dst.len().saturating_sub(1));
@@ -64,6 +70,8 @@ struct TestPlugin {
     gain: AtomicU64,
     sample_rate: AtomicU64,
     voice: Mutex<Voice>,
+    /// `IComponentHandler` dell'host (per `performEdit`).
+    handler: Mutex<Option<ComPtr<IComponentHandler>>>,
 }
 
 impl TestPlugin {
@@ -74,6 +82,7 @@ impl TestPlugin {
             gain: AtomicU64::new(f64::to_bits(default)),
             sample_rate: AtomicU64::new(f64::to_bits(44_100.0)),
             voice: Mutex::new(Voice::default()),
+            handler: Mutex::new(None),
         }
     }
 
@@ -90,6 +99,17 @@ impl TestPlugin {
             0.5
         } else {
             1.0
+        }
+    }
+
+    /// Modifica del gain "dall'interfaccia": aggiorna il valore e lo notifica all'host.
+    unsafe fn gui_edit(&self, v: f64) {
+        self.set_gain(v);
+        let handler = self.handler.lock().ok().and_then(|h| h.clone());
+        if let Some(h) = handler {
+            h.beginEdit(0);
+            h.performEdit(0, self.gain());
+            h.endEdit(0);
         }
     }
 
@@ -116,6 +136,9 @@ impl IPluginBaseTrait for TestPlugin {
         kResultOk
     }
     unsafe fn terminate(&self) -> tresult {
+        if let Ok(mut h) = self.handler.lock() {
+            *h = None;
+        }
         kResultOk
     }
 }
@@ -266,7 +289,9 @@ impl IAudioProcessorTrait for TestPlugin {
                 match e.r#type as Event_::EventTypes {
                     Event_::EventTypes_::kNoteOnEvent => {
                         let n = e.__field0.noteOn;
-                        if n.velocity > 0.0 {
+                        if n.pitch == GUI_EDIT_KEY {
+                            self.gui_edit(f64::from(n.velocity));
+                        } else if n.velocity > 0.0 {
                             voice.key = n.pitch;
                             voice.velocity = n.velocity;
                             voice.active = true;
@@ -404,7 +429,10 @@ impl IEditControllerTrait for TestPlugin {
         self.set_gain(value);
         kResultOk
     }
-    unsafe fn setComponentHandler(&self, _handler: *mut IComponentHandler) -> tresult {
+    unsafe fn setComponentHandler(&self, handler: *mut IComponentHandler) -> tresult {
+        if let Ok(mut h) = self.handler.lock() {
+            *h = ComRef::from_raw(handler).map(|r| r.to_com_ptr());
+        }
         kResultOk
     }
     unsafe fn createView(&self, _name: FIDString) -> *mut IPlugView {

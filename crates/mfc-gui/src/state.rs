@@ -80,6 +80,8 @@ pub struct Studio {
     pub live: LiveInput,
     /// Registrazione delle note live nel pattern corrente (durante la riproduzione).
     pub recording: bool,
+    /// Registrazione delle automazioni dai controlli (vedi [`crate::automation_rec`]).
+    pub auto_rec: crate::automation_rec::AutoRecState,
     /// Backend attivo; `None` solo durante il riavvio, per rilasciare il dispositivo.
     _backend: Option<Backend>,
 }
@@ -116,6 +118,7 @@ impl Studio {
             plugin_windows: HashMap::new(),
             live: LiveInput::new(handle.clone()),
             recording: false,
+            auto_rec: Default::default(),
             engine: handle,
             audible,
             audio_config,
@@ -172,6 +175,7 @@ impl Studio {
             Ok(o) => {
                 self.dirty = true;
                 self.after_change();
+                self.auto_rec_observe(&cmd);
                 Some(o)
             }
             Err(e) => {
@@ -223,6 +227,7 @@ impl Studio {
     pub fn tick_plugins(&mut self) {
         self.host.idle();
         self.plugin_windows.retain(|_, w| w.poll());
+        self.poll_plugin_param_changes();
         let errors = self.host.take_errors();
         if !errors.is_empty() {
             self.status = format!("Plugin: {}", errors.join("; "));
@@ -296,6 +301,7 @@ impl Studio {
 
     /// Chiude le note ancora tenute e le scrive nel pattern.
     fn finish_recording(&mut self) {
+        self.finish_automation_recording();
         let Some((pat, len, snap)) = self.record_target() else {
             return;
         };
