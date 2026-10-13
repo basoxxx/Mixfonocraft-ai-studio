@@ -1,10 +1,13 @@
 //! Generatori nativi (strumenti del Channel Rack).
 
 pub mod boobass;
+pub mod drumkit;
 pub mod drumsynth;
+pub mod fusion;
 pub mod kick;
 pub mod nova;
 pub mod osc3;
+pub mod prism;
 pub mod sampler;
 pub mod silent;
 pub mod supersaw;
@@ -36,6 +39,9 @@ pub fn create(inst: &PluginInstance) -> Box<dyn Generator> {
         ids::DRUMSYNTH => Box::new(drumsynth::DrumSynth::new()),
         ids::SUPERSAW => Box::new(supersaw::Supersaw::new()),
         ids::NOVA => Box::new(nova::Nova::new()),
+        ids::FUSION => Box::new(fusion::Fusion::new()),
+        ids::PRISM => Box::new(prism::Prism::new()),
+        ids::DRUMKIT => Box::new(drumkit::Drumkit::new()),
         _ => Box::new(silent::Silent::new()),
     }
 }
@@ -98,4 +104,65 @@ pub(crate) fn count_active<V: PolyVoice>(voices: &[V]) -> usize {
 #[inline]
 pub(crate) fn frames(left: &[f32], right: &[f32]) -> usize {
     left.len().min(right.len())
+}
+
+/// Note tenute ricordate in modalità mono/legato.
+pub(crate) const MONO_STACK: usize = 32;
+
+/// Pila delle note tenute per le modalità mono e legato: (tasto, id, velocity).
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct MonoStack {
+    notes: [(u8, u64, f32); MONO_STACK],
+    len: usize,
+}
+
+impl MonoStack {
+    pub fn new() -> Self {
+        Self {
+            notes: [(0, 0, 0.0); MONO_STACK],
+            len: 0,
+        }
+    }
+
+    /// Aggiunge una nota (se la pila è piena scarta la più vecchia).
+    pub fn push(&mut self, key: u8, id: u64, vel: f32) {
+        if self.len == MONO_STACK {
+            self.notes.copy_within(1..MONO_STACK, 0);
+            self.len -= 1;
+        }
+        self.notes[self.len] = (key, id, vel);
+        self.len += 1;
+    }
+
+    /// Rimuove la nota con l'id indicato; `false` se non c'era.
+    pub fn remove(&mut self, id: u64) -> bool {
+        if let Some(pos) = self.notes[..self.len].iter().position(|e| e.1 == id) {
+            self.notes.copy_within(pos + 1..self.len, pos);
+            self.len -= 1;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Ultima nota ancora tenuta.
+    pub fn last(&self) -> Option<(u8, u64, f32)> {
+        self.len.checked_sub(1).map(|i| self.notes[i])
+    }
+
+    pub fn clear(&mut self) {
+        self.len = 0;
+    }
+}
+
+/// Modalità di voce comuni ai synth polifonici.
+pub(crate) const VOICE_MODES: &[&str] = &["Poly", "Mono", "Legato"];
+
+/// Coefficiente di glide (one-pole) per un blocco di `block` campioni.
+pub(crate) fn glide_coef(glide: f32, block: usize, sr: f32) -> f32 {
+    if glide > 0.0 {
+        1.0 - (-(block as f32) / (glide * sr)).exp()
+    } else {
+        1.0
+    }
 }
