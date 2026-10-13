@@ -5,8 +5,8 @@
   Compilazione (dalla radice del repository, dopo `dotnet tool install -g wix, versione 5.0.2`):
     wix build packaging/windows/mixfonocraft.wxs -arch x64 -d Version=0.1.0 -d SourceDir="C:\percorso\stage" -o dist/Mixfonocraft-0.1.0-windows-x86_64.msi
 
-  SourceDir deve contenere: mixfonocraft-studio.exe, mixfonocraft.exe, README.md,
-  examples\demo.mfc, examples\mcp\beat_session.jsonl.
+  SourceDir deve contenere: mixfonocraft-studio.exe, mixfonocraft.exe, mfc-plugin-host.exe,
+  README.md, examples\demo.mfc, examples\mcp\beat_session.jsonl.
 
   Installazione per tutto il computer (perMachine), senza finestra di scelta: l'MSI
   installa in Program Files. Per l'installazione per utente usare l'EXE (Setup.exe).
@@ -47,6 +47,11 @@
 
         <Component Id="CmpCli" Guid="*">
           <File Id="CliExe" Source="$(SourceDir)\mixfonocraft.exe" KeyPath="yes" />
+        </Component>
+
+        <!-- Helper per i plugin VST3/CLAP in un processo separato (cercato accanto all'app). -->
+        <Component Id="CmpPluginHost" Guid="*">
+          <File Id="PluginHostExe" Source="$(SourceDir)\mfc-plugin-host.exe" KeyPath="yes" />
         </Component>
 
         <Component Id="CmpCliPath" Guid="*">
@@ -94,6 +99,7 @@
     <Feature Id="MainFeature" Title="Mixfonocraft AI Studio" Level="1" Description="Applicazione, CLI e documentazione">
       <ComponentRef Id="CmpStudio" />
       <ComponentRef Id="CmpCli" />
+      <ComponentRef Id="CmpPluginHost" />
       <ComponentRef Id="CmpReadme" />
       <ComponentRef Id="CmpExampleDemo" />
       <ComponentRef Id="CmpExampleBeat" />

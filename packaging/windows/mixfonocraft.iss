@@ -3,8 +3,8 @@
 ; Compilazione (dalla radice del repository):
 ;   ISCC.exe /DAppVersion=0.1.0 /DSourceDir="C:\percorso\stage" packaging\windows\mixfonocraft.iss
 ;
-; SourceDir deve contenere: mixfonocraft-studio.exe, mixfonocraft.exe, README.md,
-; examples\ (cartella). Output: dist\Mixfonocraft-<ver>-windows-x86_64-setup.exe
+; SourceDir deve contenere: mixfonocraft-studio.exe, mixfonocraft.exe, mfc-plugin-host.exe,
+; README.md, examples\ (cartella). Output: dist\Mixfonocraft-<ver>-windows-x86_64-setup.exe
 
 #ifndef AppVersion
   #define AppVersion "0.1.0"
@@ -16,6 +16,8 @@
 #define AppName "Mixfonocraft AI Studio"
 #define StudioExe "mixfonocraft-studio.exe"
 #define CliExe "mixfonocraft.exe"
+; Helper per i plugin VST3/CLAP in un processo separato: deve stare accanto all'app.
+#define PluginHostExe "mfc-plugin-host.exe"
 
 [Setup]
 ; AppId fisso: identifica l'applicazione per aggiornamenti e disinstallazione. Non cambiarlo.
@@ -61,6 +63,7 @@ Name: "addtopath"; Description: "Aggiungi la CLI 'mixfonocraft' al PATH (per il 
 [Files]
 Source: "{#SourceDir}\{#StudioExe}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SourceDir}\{#CliExe}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#SourceDir}\{#PluginHostExe}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SourceDir}\README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SourceDir}\examples\*"; DestDir: "{app}\examples"; Flags: ignoreversion recursesubdirs createallsubdirs
 

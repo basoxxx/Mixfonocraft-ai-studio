@@ -5,6 +5,11 @@ edition.workspace = true
 license.workspace = true
 description = "Hosting di plugin VST3 e CLAP per Mixfonocraft (scansione, istanze, audio, stato, GUI)"
 
+# Helper per l'hosting in un processo separato (modalità sandbox), distribuito accanto all'app.
+[[bin]]
+name = "mfc-plugin-host"
+path = "src/bin/mfc-plugin-host.rs"
+
 [dependencies]
 mfc-core.workspace = true
 mfc-plugins.workspace = true
@@ -22,7 +27,16 @@ clack-extensions = { version = "0.2", features = ["clack-host", "params", "state
 
 [target.'cfg(target_os = "macos")'.dependencies]
 core-foundation = "0.10"
+# Sandbox: finestra dell'editor e loop degli eventi nel processo helper
+objc2 = "0.6"
+objc2-foundation = "0.3"
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSEvent", "NSResponder", "NSRunningApplication", "NSWindow", "NSView", "NSGraphics"] }
 
-[target.'cfg(target_os = "linux")'.dependencies]
-# Backend VST3: poll dei file descriptor registrati con IRunLoop
+[target.'cfg(unix)'.dependencies]
+# Backend VST3 (Linux): poll dei file descriptor registrati con IRunLoop.
+# Sandbox: redirezione dello stdout nel processo helper.
 libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+# Sandbox: finestra dell'editor, loop dei messaggi e redirezione dello stdout nell'helper
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_System_LibraryLoader", "Win32_System_Console", "Win32_Graphics_Gdi"] }

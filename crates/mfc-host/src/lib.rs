@@ -8,11 +8,14 @@
 //! - [`Host`]: registro delle istanze vive (riusate tra le ricompilazioni del motore)
 //!   e implementazione di [`mfc_plugins::ExternalHost`].
 //! - [`wrapper`]: adattatori verso i trait `Generator` / `Effect` del motore.
+//! - [`sandbox`]: hosting opzionale in un processo separato (`mfc-plugin-host`), così un
+//!   plugin che va in crash non porta giù l'app.
 //!
 //! Kind dei plugin: `vst3:<percorso bundle>::<class id>` e `clap:<percorso file>::<plugin id>`.
 
 pub mod clap;
 pub mod host;
+pub mod sandbox;
 pub mod scan;
 pub mod vst3;
 pub mod wrapper;
@@ -234,6 +237,37 @@ pub trait ExternalInstance: Send + Sync {
     /// Latenza introdotta (sample).
     fn latency(&self) -> u32 {
         0
+    }
+
+    /// `false` se il processo che ospita il plugin (modalità sandbox) è terminato: da quel
+    /// momento `process` restituisce `false` e le altre chiamate errori o valori di default.
+    /// Le istanze in-process sono sempre vive.
+    fn is_alive(&self) -> bool {
+        true
+    }
+    /// Motivo della terminazione (es. "segnale 11"), se l'istanza non è più viva.
+    fn crash_reason(&self) -> Option<String> {
+        None
+    }
+    /// Ricrea il processo del plugin e ripristina l'ultimo stato noto (solo sandbox).
+    fn restart(&self) -> Result<(), HostError> {
+        Err(HostError::Unsupported(
+            "riavvio disponibile solo per i plugin in un processo separato".into(),
+        ))
+    }
+    /// PID del processo che ospita il plugin (solo sandbox).
+    fn process_id(&self) -> Option<u32> {
+        None
+    }
+    /// `true` se l'editor si apre in una finestra di proprietà di un altro processo:
+    /// `open_editor` ignora `parent` e la GUI non deve creare una finestra propria, ma solo
+    /// controllare [`ExternalInstance::editor_is_open`].
+    fn editor_is_external(&self) -> bool {
+        false
+    }
+    /// Per gli editor esterni: la finestra è ancora aperta (l'utente può chiuderla).
+    fn editor_is_open(&self) -> bool {
+        false
     }
 }
 
