@@ -414,3 +414,76 @@ fn sidechain_validation_and_ducking() {
         json!({"insert": 2, "slot": 0, "params": {"sidechain_insert": -1}}),
     );
 }
+
+#[test]
+fn new_plugins_in_a_song() {
+    let mut c = Client::new("newplugins");
+    let list = c.call("plugin_list", json!({}));
+    let ids: Vec<&str> = list["plugins"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|p| p["id"].as_str().unwrap())
+        .collect();
+    for id in ["mfc.fm", "mfc.pluck", "mfc.ducker", "mfc.autopan", "mfc.transient"] {
+        assert!(ids.contains(&id), "manca {id}");
+    }
+    let pad = c.call(
+        "channel_add",
+        json!({"name": "Bell", "plugin": "mfc.fm", "insert": 1, "params": {"sustain": 1.0}}),
+    )["id"]
+        .as_u64()
+        .unwrap();
+    let pl = c.call(
+        "channel_add",
+        json!({"name": "Pluck", "plugin": "mfc.pluck", "insert": 2}),
+    )["id"]
+        .as_u64()
+        .unwrap();
+    c.call(
+        "notes_add",
+        json!({"channel": pad, "notes": [{"step": 0, "length": 384, "key": "C5"}]}),
+    );
+    c.call(
+        "notes_add",
+        json!({"channel": pl, "notes": [{"step": 0, "key": "E5"}, {"step": 8, "key": "G5"}]}),
+    );
+    c.call("playlist_place", json!({"track": 0, "pattern": 1, "repeat": 2}));
+    let dry = c.call(
+        "render_wav",
+        json!({"path": "dry.wav", "stems": true, "tail_seconds": 0.0, "sample_rate": 22050}),
+    );
+    c.call(
+        "mixer_add_effect",
+        json!({"insert": 1, "plugin": "mfc.ducker", "params": {"depth": 1.0, "rate": 3, "release": 1.0}}),
+    );
+    c.call(
+        "mixer_add_effect",
+        json!({"insert": 2, "plugin": "mfc.transient", "params": {"attack": 1.0}}),
+    );
+    c.call(
+        "mixer_add_effect",
+        json!({"insert": 2, "plugin": "mfc.autopan", "params": {"depth": 0.8}}),
+    );
+    let wet = c.call(
+        "render_wav",
+        json!({"path": "wet.wav", "stems": true, "tail_seconds": 0.0, "sample_rate": 22050}),
+    );
+    let rms = |r: &Value, ins: u64| {
+        r["stems"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|s| s["insert"] == ins)
+            .unwrap()["rms_db"]
+            .as_f64()
+            .unwrap()
+    };
+    assert!(
+        rms(&wet, 1) < rms(&dry, 1) - 4.5,
+        "il ducker sincronizzato abbassa il pad: {} → {}",
+        rms(&dry, 1),
+        rms(&wet, 1)
+    );
+    assert!(wet["peak_db"].as_f64().unwrap() > -60.0);
+}

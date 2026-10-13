@@ -610,6 +610,8 @@ impl Engine {
             }
         }
         // 2) Insert in ordine topologico.
+        let beat = self.pos / prep.time.ticks_per_beat().max(1) as f64;
+        let (tempo, playing) = (self.tempo, self.playing);
         for &idx in prep.order.iter() {
             let ins = &mut prep.inserts[idx];
             let bl = &mut self.ins_l[idx][..len];
@@ -619,6 +621,7 @@ impl Engine {
                 if !slot.enabled {
                     continue;
                 }
+                fx.set_transport(tempo, beat, playing);
                 // La chiave della sorgente è già pronta: l'ordine topologico la elabora prima.
                 let key = slot.sidechain.map(|s| (&self.key_l[s][..len], &self.key_r[s][..len]));
                 let mut run = |l: &mut [f32], r: &mut [f32]| match key {

@@ -252,3 +252,56 @@ fn sampler_without_file_is_silent() {
         assert_eq!(g.active_voices(), 0);
     }
 }
+
+#[test]
+fn fm_and_pluck_lifecycles() {
+    check_lifecycle(ids::FM, &[]);
+    check_lifecycle(ids::FM, &[("feedback", 1.0), ("index", 20.0), ("ratio", 16.0)]);
+    check_lifecycle(ids::FM, &[("sustain", 1.0), ("release", 0.05)]);
+    check_lifecycle(ids::PLUCK, &[]);
+    check_lifecycle(ids::PLUCK, &[("decay", 20.0), ("release", 0.05), ("damping", 0.0)]);
+    check_lifecycle(ids::PLUCK, &[("brightness", 0.0), ("damping", 1.0)]);
+}
+
+#[test]
+fn fm_without_modulation_is_a_sine_at_pitch() {
+    let mut g = make(ids::FM, &[("index", 0.0), ("sustain", 1.0)]);
+    g.note_on(NoteOn::simple(1, 69, 1.0));
+    let (l, _) = render(g.as_mut(), 1.0);
+    let f = zero_cross_freq(&l[4800..]);
+    assert!((f - 440.0).abs() < 4.4, "{f}");
+    // Con modulazione lo spettro si arricchisce (più energia nella derivata).
+    let bright = |index: f32| {
+        let mut g = make(ids::FM, &[("index", index), ("index_sustain", 1.0), ("sustain", 1.0)]);
+        g.note_on(NoteOn::simple(1, 57, 1.0));
+        let (l, _) = render(g.as_mut(), 0.2);
+        let e: f32 = l.iter().map(|x| x * x).sum();
+        let d: f32 = l.windows(2).map(|w| (w[1] - w[0]).powi(2)).sum();
+        d / e.max(1e-12)
+    };
+    assert!(bright(6.0) > 3.0 * bright(0.0));
+}
+
+#[test]
+fn pluck_is_in_tune_and_decays() {
+    let mut g = make(ids::PLUCK, &[("damping", 0.2)]);
+    g.note_on(NoteOn::simple(1, 57, 1.0));
+    let (l, _) = render(g.as_mut(), 1.0);
+    // Periodo per autocorrelazione: la corda è ricca di armoniche, gli zeri non bastano.
+    let x = &l[2400..12_000];
+    let corr = |lag: usize| -> f32 { x.iter().zip(&x[lag..]).map(|(a, b)| a * b).sum() };
+    let lag = (48..960).max_by(|a, b| corr(*a).total_cmp(&corr(*b))).unwrap();
+    let f = SR / lag as f32;
+    assert!((f - 220.0).abs() < 3.0, "{f}");
+    let early = peak(&l[..4800]);
+    let late = peak(&l[38_400..]);
+    assert!(late < early * 0.8, "deve decadere: {early} → {late}");
+    // Note off: si spegne in fretta col release corto.
+    g.note_off(1);
+    let mut blocks = 0;
+    while g.active_voices() > 0 {
+        render(g.as_mut(), BLOCK as f32 / SR);
+        blocks += 1;
+        assert!(blocks < (2.0 * SR) as usize / BLOCK, "release troppo lungo");
+    }
+}

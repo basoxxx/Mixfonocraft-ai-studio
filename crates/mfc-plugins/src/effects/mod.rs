@@ -1,10 +1,12 @@
 //! Effetti nativi (slot degli insert del mixer).
 
+pub mod autopan;
 pub mod bitcrusher;
 pub mod chorus;
 pub mod compressor;
 pub mod delay;
 pub mod distortion;
+pub mod ducker;
 pub mod eq;
 pub mod filter;
 pub mod flanger;
@@ -14,6 +16,8 @@ pub mod limiter;
 pub mod phaser;
 pub mod reverb;
 pub mod stereo;
+mod sync;
+pub mod transient;
 
 use crate::api::Effect;
 use crate::ids;
@@ -41,6 +45,9 @@ pub fn create(id: &str) -> Option<Box<dyn Effect>> {
         ids::FILTER => Box::new(filter::Filter::new()),
         ids::STEREO => Box::new(stereo::Stereo::new()),
         ids::GAIN => Box::new(gain::Gain::new()),
+        ids::DUCKER => Box::new(ducker::Ducker::new()),
+        ids::AUTOPAN => Box::new(autopan::AutoPan::new()),
+        ids::TRANSIENT => Box::new(transient::TransientShaper::new()),
         _ => return None,
     })
 }

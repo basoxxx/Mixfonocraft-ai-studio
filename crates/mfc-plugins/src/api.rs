@@ -172,6 +172,10 @@ pub trait Effect: Send {
     fn process_sidechain(&mut self, left: &mut [f32], right: &mut [f32], _key_l: &[f32], _key_r: &[f32]) {
         self.process(left, right);
     }
+    /// Stato del transport, comunicato dal motore prima di ogni sotto-blocco: tempo (BPM),
+    /// posizione in beat (semiminime) e riproduzione in corso. Serve agli effetti
+    /// sincronizzati al tempo; gli altri lo ignorano.
+    fn set_transport(&mut self, _tempo_bpm: f64, _beat: f64, _playing: bool) {}
     /// Massima riduzione di guadagno (dB, ≤ 0) dall'ultima chiamata, poi azzera.
     /// Gli effetti che non comprimono restituiscono 0.
     fn take_gain_reduction_db(&mut self) -> f32 {

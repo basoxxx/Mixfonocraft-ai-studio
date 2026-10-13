@@ -29,14 +29,21 @@ affiliato né approvato da Image-Line; FL Studio è un marchio dei rispettivi ti
 - **Step sequencer** a 1/16 e **piano roll** con quantizzazione, trasposizione e velocity.
 - **Playlist** su 500 tracce con clip di pattern, audio e automazione, ripetizioni e mute.
 - **Mixer** con master e 125 insert, 10 slot effetto per insert, mandate, mute, solo, fase e
-  scambio L/R, con 22 plugin nativi (8 generatori, 14 effetti).
+  scambio L/R, con 27 plugin nativi (10 generatori, 17 effetti), compressore con sidechain e
+  volumi anche in dB.
+
+  | Generatori | Effetti |
+  |---|---|
+  | Sampler, Audio Clip, 3xOsc, BooBass, Kick, Drum Synth, Supersaw, **FM2** (FM a 2 operatori), **Pluck** (corda Karplus-Strong), Silent | EQ, Compressor (sidechain), Limiter, Gate, Reverb, Delay, Chorus, Flanger, Phaser, Distortion, Bitcrusher, Filter, Stereo, Gain, **Ducker** (volume shaper a tempo), **Auto Pan** (pan/tremolo a tempo), **Transient Shaper** |
 - **Automazioni** su volume, pan, pitch, tempo, parametri di canale ed effetti, con curve a tensione.
 - **Transport** in modalità Song o Pattern, con swing globale.
-- **Render** offline in WAV (16 o 24 bit intero, 32 bit float), con normalizzazione e stem per insert.
+- **Render** offline in WAV (16 o 24 bit intero, 32 bit float), con normalizzazione e stem per insert;
+  misure di picco, true peak, RMS sulle parti attive, loudness EBU R128 (LUFS) e riduzione del limiter.
 - **Formati**: progetti nativi `.mfc` (JSON), import ed export `.flp`, import ed export MIDI (`.mid`).
 - **Undo/redo** su ogni modifica, condiviso da GUI, CLI e server MCP.
 - **CLI** `mixfonocraft` per convertire, ispezionare e renderizzare progetti, con un brano dimostrativo.
-- **Server MCP** con 47 tool per creare progetti, pattern, mix e render da un agente AI.
+- **Server MCP** con 47 tool per creare progetti, pattern, mix e render da un agente AI, anche
+  **in diretta nella GUI** (collegamento live con undo condiviso).
 
 ## Struttura del workspace
 
@@ -263,7 +270,7 @@ memoria, ne verificano struttura e render (durata, livello, dissolvenza), fanno 
 - Le clip di automazione non vengono esportate nel `.flp`.
 - I plugin FL sconosciuti vengono conservati come dati opachi e riesportati senza modifiche, ma
   non suonano.
-- I plugin nativi senza equivalente in FL Studio (drum synth, supersaw) diventano canali sampler
+- I plugin nativi senza equivalente in FL Studio (drum synth, supersaw, FM2, pluck) diventano canali sampler
   vuoti con lo stesso nome nel `.flp`.
 - L'audio realtime dipende dal backend della piattaforma; senza scheda audio il transport gira
   senza uscita.

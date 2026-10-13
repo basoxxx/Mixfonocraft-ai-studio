@@ -35,11 +35,11 @@ dal basso verso l'alto):
 | `mfc-core` | (nessuno interno) | Modello del progetto, `Command`, `History`, `TimeBase` |
 | `mfc-dsp` | (nessuno interno) | Primitive DSP real-time safe: oscillatori, filtri, inviluppi, delay line, LFO, misuratori |
 | `mfc-plugins` | `mfc-core`, `mfc-dsp` | Generatori ed effetti nativi, descrittori e `registry()` |
-| `mfc-engine` | `mfc-core`, `mfc-plugins` | Motore audio, render offline, backend `null` e `cpal` (feature `realtime`) |
+| `mfc-engine` | `mfc-core`, `mfc-plugins`, `mfc-dsp` | Motore audio, render offline, backend `null` e `cpal` (feature `realtime`) |
 | `mfc-flp` | `mfc-core` | Lettura/scrittura `.flp`: eventi lossless, import e export semantici |
 | `mfc-midi` | `mfc-core` | Import/export SMF (formati 0 e 1) |
 | `mfc-mcp` | `mfc-core`, `mfc-plugins`, `mfc-engine`, `mfc-flp`, `mfc-midi` | Server MCP su stdio con 47 tool |
-| `mfc-gui` | `mfc-core`, `mfc-plugins`, `mfc-engine`, `mfc-flp`, `mfc-midi` | Interfaccia egui/eframe |
+| `mfc-gui` | `mfc-core`, `mfc-plugins`, `mfc-engine`, `mfc-flp`, `mfc-midi`, `mfc-mcp` | Interfaccia egui/eframe, collegamento MCP live, apertura documenti su macOS |
 | `mfc-cli` | `mfc-core`, `mfc-engine`, `mfc-flp`, `mfc-midi`, `mfc-mcp`, `mfc-plugins`, `mfc-gui` (opzionale) | Binario `mixfonocraft` |
 
 `mfc-core` è il punto di convergenza: il modello è l'unico linguaggio comune tra GUI, CLI,
@@ -197,8 +197,15 @@ Definito in `crates/mfc-plugins/src/api.rs`.
   buffer) e `active_voices`. `NoteOn` porta id della voce, tono, velocity, pan, microtuning,
   nota radice del canale, glide e offset di campione per le audio clip avviate a metà.
 - **Effetto** (trait `Effect`): `set_sample_rate`, `set_param`, `reset`, `process` in-place,
-  `latency`.
-- **Registro**: `mfc_plugins::registry()` elenca i 22 descrittori nativi (8 generatori e 14
+  `latency`. Metodi opzionali: `process_sidechain` (rilevamento su una chiave esterna, usato
+  dal compressore con `sidechain_insert`), `set_transport` (tempo, posizione in beat e stato di
+  play, passati dal motore prima di ogni sotto-blocco: servono a Ducker e Auto Pan) e
+  `take_gain_reduction_db` (metering della riduzione, letto dal render).
+- **Sidechain nel motore**: l'ordine topologico degli insert include, oltre alle mandate, le
+  dipendenze sidechain; l'uscita degli effetti dell'insert sorgente, prima del fader, viene
+  copiata in un buffer chiave letto dall'effetto. Un sidechain la cui sorgente non precede
+  l'insert (ciclo) viene disattivato.
+- **Registro**: `mfc_plugins::registry()` elenca i 27 descrittori nativi (10 generatori e 17
   effetti). `default_instance(id)` costruisce un'istanza con i default, `create_generator` e
   `create_effect` istanziano il DSP applicando i parametri.
 - **Plugin sconosciuti**: un canale con un plugin non nativo diventa un generatore silenzioso.

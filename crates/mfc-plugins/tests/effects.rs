@@ -268,3 +268,69 @@ fn sample_rate_changes_are_safe() {
         }
     }
 }
+
+#[test]
+fn ducker_follows_the_beat() {
+    // 120 BPM, ciclo 1/4: un beat = 24 000 campioni a 48 kHz.
+    let mut fx = make(
+        ids::DUCKER,
+        &[("depth", 1.0), ("release", 0.5), ("curve", 0.0), ("smooth", 0.0)],
+    );
+    fx.set_transport(120.0, 0.0, true);
+    let n = 48_000;
+    let (mut l, mut r) = (vec![1.0f32; n], vec![1.0f32; n]);
+    run(fx.as_mut(), &mut l, &mut r);
+    // Inizio del beat: silenzio; a metà della risalita: metà; seconda metà del beat: pieno.
+    assert!(l[10] < 0.01, "{}", l[10]);
+    assert!((l[6000] - 0.5).abs() < 0.02, "{}", l[6000]);
+    assert!((l[18_000] - 1.0).abs() < 1e-3);
+    assert!(l[24_010] < 0.01, "nuovo beat: {}", l[24_010]);
+    assert!(fx.take_gain_reduction_db() < -40.0);
+    // Il transport riallinea la fase.
+    fx.set_transport(120.0, 0.5, true);
+    let (mut l, mut r) = (vec![1.0f32; 64], vec![1.0f32; 64]);
+    fx.process(&mut l, &mut r);
+    assert!((l[63] - 1.0).abs() < 1e-3, "a metà beat il volume è pieno: {}", l[63]);
+}
+
+#[test]
+fn autopan_moves_between_channels() {
+    let mut fx = make(ids::AUTOPAN, &[("depth", 1.0), ("rate", 3.0), ("shape", 2.0)]);
+    fx.set_transport(120.0, 0.0, true);
+    let n = 48_000;
+    let (mut l, mut r) = (vec![0.5f32; n], vec![0.5f32; n]);
+    run(fx.as_mut(), &mut l, &mut r);
+    // Onda quadra a 1/4: prima metà del beat a destra, seconda a sinistra.
+    assert!(r[6000] > 0.49 && l[6000] < 0.01, "{} {}", l[6000], r[6000]);
+    assert!(l[18_000] > 0.49 && r[18_000] < 0.01, "{} {}", l[18_000], r[18_000]);
+    // Tremolo: entrambi i canali insieme.
+    let mut fx = make(ids::AUTOPAN, &[("mode", 1.0), ("depth", 1.0), ("rate", 3.0)]);
+    fx.set_transport(120.0, 0.0, true);
+    let (mut l, mut r) = (vec![0.5f32; n], vec![0.5f32; n]);
+    run(fx.as_mut(), &mut l, &mut r);
+    assert!((l[6000] - r[6000]).abs() < 1e-6);
+    assert!(peak(&l) > 0.45 && l[18_000] < 0.05);
+}
+
+#[test]
+fn transient_shaper_changes_attack_and_tail() {
+    // Colpo con attacco istantaneo e coda esponenziale, ripetuto.
+    let hit: Vec<f32> = (0..48_000)
+        .map(|i| {
+            let t = (i % 12_000) as f32 / SR;
+            (TAU * 100.0 * t).sin() * (-t * 20.0).exp() * 0.5
+        })
+        .collect();
+    let process = |params: &[(&str, f32)]| {
+        let mut fx = make(ids::TRANSIENT, params);
+        let (mut l, mut r) = (hit.clone(), hit.clone());
+        run(fx.as_mut(), &mut l, &mut r);
+        // Rapporto tra picco dell'attacco (primi 5 ms) e livello della coda (80..120 ms) dell'ultimo colpo.
+        let start = 36_000;
+        peak(&l[start..start + 240]) / peak(&l[start + 3840..start + 5760]).max(1e-9)
+    };
+    let neutral = process(&[]);
+    assert!(process(&[("attack", 1.0)]) > neutral * 1.5, "attacco esaltato");
+    assert!(process(&[("sustain", 1.0)]) < neutral / 1.5, "coda esaltata");
+    assert!(process(&[("attack", -1.0)]) < neutral, "attacco attenuato");
+}

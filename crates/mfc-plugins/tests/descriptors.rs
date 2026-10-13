@@ -12,6 +12,8 @@ const ALL_IDS: &[&str] = &[
     ids::DRUMSYNTH,
     ids::SUPERSAW,
     ids::SILENT,
+    ids::FM,
+    ids::PLUCK,
     ids::EQ,
     ids::COMPRESSOR,
     ids::LIMITER,
@@ -26,6 +28,9 @@ const ALL_IDS: &[&str] = &[
     ids::FILTER,
     ids::STEREO,
     ids::GAIN,
+    ids::DUCKER,
+    ids::AUTOPAN,
+    ids::TRANSIENT,
 ];
 
 #[test]

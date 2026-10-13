@@ -24,6 +24,8 @@ pub mod ids {
     pub const DRUMSYNTH: &str = "mfc.drumsynth";
     pub const SUPERSAW: &str = "mfc.supersaw";
     pub const SILENT: &str = "mfc.silent";
+    pub const FM: &str = "mfc.fm";
+    pub const PLUCK: &str = "mfc.pluck";
     // Effetti
     pub const EQ: &str = "mfc.eq";
     pub const COMPRESSOR: &str = "mfc.compressor";
@@ -39,6 +41,9 @@ pub mod ids {
     pub const FILTER: &str = "mfc.filter";
     pub const STEREO: &str = "mfc.stereo";
     pub const GAIN: &str = "mfc.gain";
+    pub const DUCKER: &str = "mfc.ducker";
+    pub const AUTOPAN: &str = "mfc.autopan";
+    pub const TRANSIENT: &str = "mfc.transient";
 }
 
 /// Tutti i descrittori registrati (generatori poi effetti).
@@ -91,6 +96,8 @@ static REGISTRY: &[&PluginDescriptor] = &[
     &generators::kick::DESCRIPTOR,
     &generators::drumsynth::DESCRIPTOR,
     &generators::supersaw::DESCRIPTOR,
+    &generators::fm::DESCRIPTOR,
+    &generators::pluck::DESCRIPTOR,
     &generators::silent::DESCRIPTOR,
     &effects::eq::DESCRIPTOR,
     &effects::compressor::DESCRIPTOR,
@@ -106,4 +113,7 @@ static REGISTRY: &[&PluginDescriptor] = &[
     &effects::filter::DESCRIPTOR,
     &effects::stereo::DESCRIPTOR,
     &effects::gain::DESCRIPTOR,
+    &effects::ducker::DESCRIPTOR,
+    &effects::autopan::DESCRIPTOR,
+    &effects::transient::DESCRIPTOR,
 ];
