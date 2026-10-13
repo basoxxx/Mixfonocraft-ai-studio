@@ -1,8 +1,9 @@
 name: Release
 
 # Build per macOS (Intel e Apple Silicon) e Windows.
-# Ogni target produce entrambi i binari: `mixfonocraft-studio` (GUI, mfc-app) e
-# `mixfonocraft` (CLI e server MCP, mfc-cli).
+# Ogni target produce i binari `mixfonocraft-studio` (GUI, mfc-app), `mixfonocraft`
+# (CLI e server MCP, mfc-cli) e `mfc-plugin-host` (mfc-host: helper che ospita i plugin
+# VST3/CLAP in un processo separato, cercato accanto all'eseguibile dell'app).
 # - macOS: Mixfonocraft-<ver>-macos-<arch>.dmg (app trascinabile in Applicazioni).
 # - Windows: Mixfonocraft-<ver>-windows-x86_64-setup.exe (Inno Setup),
 #   Mixfonocraft-<ver>-windows-x86_64.msi (WiX) e la versione portatile .zip.
@@ -65,6 +66,11 @@ jobs:
         env:
           MACOSX_DEPLOYMENT_TARGET: "11.0"
 
+      - name: Build helper dei plugin (sandbox)
+        run: cargo build --release --locked -p mfc-host --bin mfc-plugin-host --target ${{ matrix.target }}
+        env:
+          MACOSX_DEPLOYMENT_TARGET: "11.0"
+
       - name: Versione
         id: ver
         shell: bash
@@ -78,7 +84,8 @@ jobs:
           REL=target/${{ matrix.target }}/release
           test -s "$REL/mixfonocraft-studio$EXT"
           test -s "$REL/mixfonocraft$EXT"
-          ls -lh "$REL/mixfonocraft-studio$EXT" "$REL/mixfonocraft$EXT"
+          test -s "$REL/mfc-plugin-host$EXT"
+          ls -lh "$REL/mixfonocraft-studio$EXT" "$REL/mixfonocraft$EXT" "$REL/mfc-plugin-host$EXT"
 
       - name: Smoke test (demo + render)
         if: matrix.native
@@ -91,6 +98,7 @@ jobs:
           test -s "$ROOT/target/${{ matrix.target }}/release/mixfonocraft-studio$EXT"
           cd "$(mktemp -d)"
           "$BIN" --version
+          "$ROOT/target/${{ matrix.target }}/release/mfc-plugin-host$EXT" --version
           "$BIN" demo smoke.mfc --render smoke.wav
           "$BIN" info smoke.mfc
           "$BIN" convert smoke.mfc smoke.flp
@@ -111,14 +119,15 @@ jobs:
           mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" dist
           cp "$REL/mixfonocraft-studio" "$APP/Contents/MacOS/"
           cp "$REL/mixfonocraft" "$APP/Contents/MacOS/"
-          chmod +x "$APP/Contents/MacOS/mixfonocraft-studio" "$APP/Contents/MacOS/mixfonocraft"
+          cp "$REL/mfc-plugin-host" "$APP/Contents/MacOS/"
+          chmod +x "$APP/Contents/MacOS/mixfonocraft-studio" "$APP/Contents/MacOS/mixfonocraft" "$APP/Contents/MacOS/mfc-plugin-host"
           cp assets/icon/icon.icns "$APP/Contents/Resources/AppIcon.icns"
           sed "s/__VERSION__/$VER/g" packaging/macos/Info.plist > "$APP/Contents/Info.plist"
           plutil -lint "$APP/Contents/Info.plist"
           # Firma ad-hoc (nessun certificato Apple): necessaria su Apple Silicon.
           codesign --force --deep --sign - "$APP"
           codesign --verify --deep --strict --verbose=2 "$APP"
-          lipo -info "$APP/Contents/MacOS/mixfonocraft-studio" "$APP/Contents/MacOS/mixfonocraft"
+          lipo -info "$APP/Contents/MacOS/mixfonocraft-studio" "$APP/Contents/MacOS/mixfonocraft" "$APP/Contents/MacOS/mfc-plugin-host"
 
           # dmgbuild in un virtualenv: il Python di sistema del runner può essere "externally managed".
           python3 -m venv "$RUNNER_TEMP/dmgvenv"
@@ -148,6 +157,7 @@ jobs:
           RC=0
           test -x "$MNT/Mixfonocraft.app/Contents/MacOS/mixfonocraft-studio" || RC=1
           test -x "$MNT/Mixfonocraft.app/Contents/MacOS/mixfonocraft" || RC=1
+          test -x "$MNT/Mixfonocraft.app/Contents/MacOS/mfc-plugin-host" || RC=1
           test -L "$MNT/Applications" || RC=1
           ls -la "$MNT"
           hdiutil detach "$MNT" || hdiutil detach -force "$MNT"
@@ -184,6 +194,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path $stage | Out-Null
           Copy-Item "$rel/mixfonocraft-studio.exe" $stage
           Copy-Item "$rel/mixfonocraft.exe" $stage
+          Copy-Item "$rel/mfc-plugin-host.exe" $stage
           Copy-Item README.md $stage
           Copy-Item -Recurse examples $stage
           $stageAbs = (Resolve-Path $stage).Path
@@ -231,6 +242,7 @@ jobs:
           if ($p.ExitCode -ne 0) { throw "Installazione silenziosa fallita (codice $($p.ExitCode))" }
           if (-not (Test-Path "$target\mixfonocraft-studio.exe")) { throw "mixfonocraft-studio.exe non installato" }
           if (-not (Test-Path "$target\mixfonocraft.exe")) { throw "mixfonocraft.exe non installato" }
+          if (-not (Test-Path "$target\mfc-plugin-host.exe")) { throw "mfc-plugin-host.exe non installato" }
           & "$target\mixfonocraft.exe" --version
 
           $u = Start-Process -FilePath "$target\unins000.exe" -ArgumentList @(

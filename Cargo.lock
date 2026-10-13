@@ -1681,11 +1681,15 @@ dependencies = [
  "libloading 0.9.0",
  "mfc-core",
  "mfc-plugins",
+ "objc2 0.6.5",
+ "objc2-app-kit 0.3.2",
+ "objc2-foundation 0.3.2",
  "parking_lot",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
  "vst3",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
