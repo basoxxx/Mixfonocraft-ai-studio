@@ -351,3 +351,74 @@ fn new_project_sets_title_and_tempo() {
     assert_eq!(p.patterns.len(), 1);
     assert!(mfc_cli::new_project("x", Some(5.0)).is_err(), "tempo fuori range");
 }
+
+/// Esegue `mixfonocraft mcp --attach` con le righe date, con l'endpoint live in `socket`.
+fn run_attach(socket: &Path, workdir: &Path, lines: &[String]) -> std::process::Output {
+    let mut child = Command::new(env!("CARGO_BIN_EXE_mixfonocraft"))
+        .args(["mcp", "--attach", "--workdir"])
+        .arg(workdir)
+        .env("MIXFONOCRAFT_SOCKET", socket)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("avvio di mcp --attach");
+    {
+        let mut stdin = child.stdin.take().expect("stdin");
+        for l in lines {
+            writeln!(stdin, "{l}").unwrap();
+        }
+    }
+    child.wait_with_output().expect("attesa")
+}
+
+#[test]
+fn mcp_attach_bridges_to_live_endpoint() {
+    let tmp = TempDir::new("attach");
+    let socket = tmp.path("live.sock");
+    std::env::set_var("MIXFONOCRAFT_SOCKET", &socket);
+    // Endpoint servito da una sessione "GUI" in questo processo.
+    let (listener, rx) = mfc_mcp::live::LiveListener::start(std::sync::Arc::new(|| {})).expect("endpoint");
+    let workdir = tmp.0.clone();
+    let gui = std::thread::spawn(move || {
+        let mut server = mfc_mcp::Server::new(mfc_mcp::Session::new(workdir));
+        let mut served = 0;
+        while let Ok(req) = rx.recv_timeout(std::time::Duration::from_secs(10)) {
+            let _ = req.reply.send(server.handle(req.message));
+            served += 1;
+            if served == 3 {
+                break;
+            }
+        }
+        server.session.project
+    });
+    let lines = [
+        r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}"#.to_string(),
+        r#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#.to_string(),
+        r#"{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"project_set","arguments":{"tempo":133}}}"#
+            .to_string(),
+    ];
+    let out = run_attach(&socket, &tmp.0, &lines);
+    assert!(out.status.success(), "stderr: {}", String::from_utf8_lossy(&out.stderr));
+    let responses: Vec<Value> = String::from_utf8(out.stdout)
+        .unwrap()
+        .lines()
+        .map(|l| serde_json::from_str(l).unwrap())
+        .collect();
+    assert_eq!(responses.len(), 2, "{responses:?}");
+    assert_eq!(responses[1]["result"]["structuredContent"]["tempo"], 133.0);
+    let project = gui.join().unwrap();
+    assert_eq!(project.tempo, 133.0, "la modifica avviene nella sessione della GUI");
+    drop(listener);
+}
+
+#[test]
+fn mcp_attach_without_gui_falls_back_to_headless() {
+    let tmp = TempDir::new("attach-none");
+    let lines = [r#"{"jsonrpc":"2.0","id":1,"method":"ping"}"#.to_string()];
+    let out = run_attach(&tmp.path("nessuna.sock"), &tmp.0, &lines);
+    assert!(out.status.success());
+    let reply: Value = serde_json::from_str(String::from_utf8(out.stdout).unwrap().trim()).unwrap();
+    assert_eq!(reply["id"], 1);
+    assert!(String::from_utf8_lossy(&out.stderr).contains("headless"));
+}

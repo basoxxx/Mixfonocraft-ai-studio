@@ -122,12 +122,22 @@ enum Cmd {
         /// Cartella di lavoro per i percorsi relativi (default: directory corrente).
         #[arg(long)]
         workdir: Option<PathBuf>,
+        /// Si collega alla GUI aperta (collegamento MCP live): l'agente lavora sul progetto
+        /// visibile nella finestra. Se nessuna GUI è in ascolto, avvia una sessione headless.
+        #[arg(long)]
+        attach: bool,
     },
     /// Apre la finestra grafica, opzionalmente con un progetto.
     #[cfg(feature = "gui")]
     Gui {
         /// Progetto da aprire (.mfc, .flp o .mid).
         file: Option<PathBuf>,
+        /// Avvia subito il collegamento MCP live (per `mixfonocraft mcp --attach`).
+        #[arg(long)]
+        mcp: bool,
+        /// Cartella di lavoro dei percorsi relativi del collegamento live.
+        #[arg(long)]
+        workdir: Option<PathBuf>,
     },
 }
 
@@ -273,7 +283,16 @@ fn main() -> Result<()> {
                 );
             }
         }
-        Cmd::Mcp { workdir } => {
+        Cmd::Mcp { workdir, attach } => {
+            if attach {
+                if mfc_mcp::live::bridge_stdio().context("collegamento con la GUI")? {
+                    return Ok(());
+                }
+                eprintln!(
+                    "nessuna GUI in ascolto su {}: sessione headless",
+                    mfc_mcp::live::endpoint_path().display()
+                );
+            }
             let workdir = match workdir {
                 Some(w) => w,
                 None => std::env::current_dir().context("directory corrente non disponibile")?,
@@ -282,7 +301,7 @@ fn main() -> Result<()> {
             server.run_stdio().context("errore del server MCP")?;
         }
         #[cfg(feature = "gui")]
-        Cmd::Gui { file } => {
+        Cmd::Gui { file, mcp, workdir } => {
             let (project, path) = match file {
                 Some(f) => {
                     let loaded = load_project(&f)?;
@@ -292,7 +311,8 @@ fn main() -> Result<()> {
                 }
                 None => (Project::new("Untitled"), None),
             };
-            mfc_gui::run(project, path).map_err(|e| anyhow!("finestra grafica: {e}"))?;
+            let opts = mfc_gui::RunOptions { live_mcp: mcp, workdir };
+            mfc_gui::run_with(project, path, opts).map_err(|e| anyhow!("finestra grafica: {e}"))?;
         }
     }
     Ok(())

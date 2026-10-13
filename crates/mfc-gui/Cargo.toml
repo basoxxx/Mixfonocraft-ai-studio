@@ -17,10 +17,16 @@ mfc-plugins.workspace = true
 mfc-engine.workspace = true
 mfc-flp.workspace = true
 mfc-midi.workspace = true
+mfc-mcp.workspace = true
 eframe = { workspace = true, default-features = false, features = ["default_fonts", "glow", "x11", "wayland"] }
 egui.workspace = true
 serde_json.workspace = true
+# Event loop creato da noi (per agganciare l'apertura dei documenti su macOS prima del lancio).
+winit = { version = "0.30", default-features = false }
 png = { version = "0.18", optional = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
 
 [[example]]
 name = "screenshot"

@@ -16,6 +16,20 @@ pub struct Transport {
     pub audible: bool,
 }
 
+impl Transport {
+    /// Transport che usa un motore già avviato da altri (la GUI nel collegamento live):
+    /// la sessione lo comanda e lo risincronizza, ma non ne possiede il backend audio.
+    pub fn attached(handle: EngineHandle, audible: bool) -> Self {
+        Transport {
+            handle,
+            _null: None,
+            #[cfg(feature = "realtime")]
+            _device: None,
+            audible,
+        }
+    }
+}
+
 /// Sessione di lavoro.
 pub struct Session {
     pub project: Project,

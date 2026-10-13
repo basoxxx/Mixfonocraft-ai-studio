@@ -28,6 +28,12 @@ pub struct StudioApp {
     piano_roll: views::piano_roll::PianoRoll,
     playlist: views::playlist::PlaylistView,
     dialog: Option<FileDialog>,
+    /// Server MCP live, se attivo.
+    pub live: Option<crate::live::LiveMcp>,
+    /// Cartella di lavoro del server live (default: [`crate::live::default_workdir`]).
+    pub workdir: Option<std::path::PathBuf>,
+    /// Documento da aprire in attesa di conferma (modifiche non salvate).
+    pending_open: Option<std::path::PathBuf>,
 }
 
 impl StudioApp {
@@ -37,6 +43,100 @@ impl StudioApp {
             piano_roll: Default::default(),
             playlist: Default::default(),
             dialog: None,
+            live: None,
+            workdir: None,
+            pending_open: None,
+        }
+    }
+
+    /// Avvia il server MCP live; un errore (es. endpoint già in uso) finisce nella barra di stato.
+    pub fn start_live(&mut self, ctx: &egui::Context, workdir: Option<std::path::PathBuf>) {
+        let dir = workdir
+            .or_else(|| self.workdir.clone())
+            .unwrap_or_else(|| crate::live::default_workdir(self.studio.path.as_deref()));
+        match crate::live::LiveMcp::start(ctx, dir) {
+            Ok(l) => {
+                self.studio.status = format!(
+                    "MCP live attivo ({}): collegarsi con `mixfonocraft mcp --attach`",
+                    l.endpoint()
+                );
+                self.live = Some(l);
+            }
+            Err(e) => self.studio.status = format!("MCP live non avviato: {e}"),
+        }
+    }
+
+    pub fn stop_live(&mut self) {
+        if self.live.take().is_some() {
+            self.studio.status = "MCP live disattivato".into();
+        }
+    }
+
+    /// Richieste MCP live e documenti aperti dal sistema (da chiamare a ogni frame).
+    fn poll_external(&mut self) {
+        if let Some(live) = self.live.as_mut() {
+            live.serve(&mut self.studio);
+        }
+        for path in crate::open_queue::take() {
+            if self.studio.dirty {
+                // Chiede conferma per l'ultimo documento ricevuto.
+                self.pending_open = Some(path);
+            } else {
+                self.open_now(&path);
+            }
+        }
+    }
+
+    fn open_now(&mut self, path: &std::path::Path) {
+        if let Err(e) = self.studio.open(path) {
+            self.studio.status = format!("Errore: impossibile aprire {}: {e}", path.display());
+        }
+    }
+
+    /// Conferma prima di sostituire un progetto con modifiche non salvate.
+    fn confirm_open_dialog(&mut self, ctx: &egui::Context) {
+        let Some(path) = self.pending_open.clone() else { return };
+        let name = path
+            .file_name()
+            .map_or_else(|| path.display().to_string(), |n| n.to_string_lossy().into_owned());
+        let mut choice = None;
+        egui::Window::new("Modifiche non salvate")
+            .collapsible(false)
+            .resizable(false)
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .show(ctx, |ui| {
+                ui.label(format!(
+                    "Il progetto \"{}\" ha modifiche non salvate. Aprire \"{name}\"?",
+                    self.studio.project.info.title
+                ));
+                ui.add_space(6.0);
+                ui.horizontal(|ui| {
+                    if self.studio.path.is_some() && ui.button("Salva e apri").clicked() {
+                        choice = Some(0);
+                    }
+                    if ui.button("Apri senza salvare").clicked() {
+                        choice = Some(1);
+                    }
+                    if ui.button("Annulla").clicked() {
+                        choice = Some(2);
+                    }
+                });
+            });
+        match choice {
+            Some(0) => {
+                let save = self.studio.path.clone().map(|p| self.studio.save_as(&p));
+                self.pending_open = None;
+                match save {
+                    Some(Err(e)) => self.studio.status = format!("Errore nel salvataggio: {e}"),
+                    _ => self.open_now(&path),
+                }
+            }
+            Some(1) => {
+                self.pending_open = None;
+                self.open_now(&path);
+            }
+            Some(2) => self.pending_open = None,
+            _ => {}
         }
     }
 
@@ -45,6 +145,7 @@ impl StudioApp {
         if !theme::ensure(ui.ctx()) {
             return;
         }
+        self.poll_external();
         self.shortcuts(ui.ctx());
         egui::Panel::top("transport")
             .exact_size(52.0)
@@ -95,6 +196,7 @@ impl StudioApp {
             });
         views::plugin_editor::show(ui.ctx(), &mut self.studio);
         self.file_dialog(ui.ctx());
+        self.confirm_open_dialog(ui.ctx());
         if self.studio.engine.shared.is_playing() {
             ui.ctx().request_repaint();
         } else {
@@ -225,6 +327,38 @@ impl StudioApp {
                         });
                         ui.close();
                     }
+                }
+            });
+            ui.menu_button(RichText::new("Agente").color(pal::TEXT_DIM), |ui| {
+                ui.set_min_width(260.0);
+                let mut on = self.live.is_some();
+                if ui
+                    .checkbox(&mut on, "Collegamento MCP live")
+                    .on_hover_text("L'agente collegato con `mixfonocraft mcp --attach` lavora sul progetto aperto qui")
+                    .changed()
+                {
+                    if on {
+                        self.start_live(ui.ctx(), None);
+                    } else {
+                        self.stop_live();
+                    }
+                }
+                if let Some(l) = &self.live {
+                    ui.label(
+                        RichText::new(format!("Endpoint: {}", l.endpoint()))
+                            .size(11.0)
+                            .color(pal::TEXT_DIM),
+                    );
+                    ui.label(
+                        RichText::new(format!("Cartella: {}", l.workdir().display()))
+                            .size(11.0)
+                            .color(pal::TEXT_DIM),
+                    );
+                    ui.label(
+                        RichText::new(format!("Chiamate servite: {}", l.calls))
+                            .size(11.0)
+                            .color(pal::TEXT_DIM),
+                    );
                 }
             });
             ui.menu_button(RichText::new("Modifica").color(pal::TEXT_DIM), |ui| {
@@ -409,6 +543,20 @@ impl StudioApp {
             let (dot, _) = ui.allocate_exact_size(egui::vec2(8.0, 8.0), egui::Sense::hover());
             let c = if self.studio.audible { pal::GREEN } else { pal::YELLOW };
             ui.painter().circle_filled(dot.center(), 3.5, c);
+            if let Some(l) = &self.live {
+                let (dot, _) = ui.allocate_exact_size(egui::vec2(8.0, 8.0), egui::Sense::hover());
+                ui.painter().circle_filled(dot.center(), 3.5, pal::ACCENT);
+                let tip = match &l.last_tool {
+                    Some(t) => format!("Ultimo tool: {t}"),
+                    None => "In attesa dell'agente".into(),
+                };
+                ui.label(
+                    RichText::new(format!("MCP live · {}", l.calls))
+                        .size(11.0)
+                        .color(pal::ACCENT),
+                )
+                .on_hover_text(tip);
+            }
             ui.label(RichText::new(&self.studio.status).size(11.0).color(pal::TEXT_DIM));
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 let p = &self.studio.project;

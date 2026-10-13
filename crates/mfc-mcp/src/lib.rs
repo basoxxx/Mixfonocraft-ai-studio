@@ -5,6 +5,7 @@
 //! render, transport e import/export FLP/MIDI come tool richiamabili da agenti AI.
 
 mod flp;
+pub mod live;
 pub mod protocol;
 pub mod session;
 pub mod tools;

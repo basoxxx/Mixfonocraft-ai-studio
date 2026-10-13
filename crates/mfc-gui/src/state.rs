@@ -204,38 +204,69 @@ impl Studio {
 
     /// Apre .mfc, .flp o .mid.
     pub fn open(&mut self, path: &Path) -> Result<(), String> {
-        let ext = path
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("")
-            .to_ascii_lowercase();
-        let project = match ext.as_str() {
-            "flp" => {
-                let (_, imp) = mfc_flp::read_file(path).map_err(|e| e.to_string())?;
-                if !imp.warnings.is_empty() {
-                    self.status = format!("FLP importato con {} avvisi", imp.warnings.len());
-                }
-                imp.project
-            }
-            "mid" | "midi" => {
-                let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
-                let mut p = Project::new(path.file_stem().and_then(|s| s.to_str()).unwrap_or("MIDI"));
-                let imp = mfc_midi::parse_midi(&bytes, p.time.ppq).map_err(|e| e.to_string())?;
-                let (pat, _) = mfc_midi::import_into_project(&mut p, &imp, "MIDI").map_err(|e| e.to_string())?;
-                p.current_pattern = Some(pat);
-                p
-            }
-            _ => {
-                let txt = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
-                Project::from_json(&txt).map_err(|e| e.to_string())?
-            }
+        let loaded = load_project(path)?;
+        self.replace_project(loaded.project, loaded.save_path);
+        self.status = if loaded.warnings.is_empty() {
+            format!("Aperto {}", path.display())
+        } else {
+            format!("Importato {} con {} avvisi", path.display(), loaded.warnings.len())
         };
-        let keep_path = (ext == "mfc").then(|| path.to_path_buf());
-        self.replace_project(project, keep_path);
-        if self.status.is_empty() || !self.status.starts_with("FLP") {
-            self.status = format!("Aperto {}", path.display());
-        }
         Ok(())
+    }
+
+    /// Aggiorna lo stato della GUI dopo un tool MCP eseguito dal collegamento live.
+    /// Il motore è già stato risincronizzato dalla sessione MCP.
+    pub fn after_external_change(&mut self, tool: &str, args: &serde_json::Value, changed: bool, ok: bool) {
+        if !ok {
+            self.status = format!("MCP: {tool} non riuscito");
+            return;
+        }
+        let replaced = matches!(tool, "project_new" | "project_open" | "flp_import");
+        if replaced {
+            self.dirty = false;
+            self.selected_channel = self.project.channels.first().map(|c| c.id);
+            self.plugin_editor = None;
+            self.apply_initial_view();
+        } else if changed {
+            self.dirty = true;
+            let pattern_before = self.current_pattern();
+            if self.selected_channel.is_none_or(|c| self.project.channel(c).is_none()) {
+                self.selected_channel = self.project.channels.first().map(|c| c.id);
+            }
+            if let Some(PluginTarget::Channel(c)) = self.plugin_editor {
+                if self.project.channel(c).is_none() {
+                    self.plugin_editor = None;
+                }
+            }
+            if let Some(PluginTarget::Effect { insert, slot }) = self.plugin_editor {
+                if self
+                    .project
+                    .insert(insert)
+                    .is_none_or(|i| i.effects.len() <= slot as usize)
+                {
+                    self.plugin_editor = None;
+                }
+            }
+            if !self.song_mode && self.current_pattern() != pattern_before {
+                self.apply_mode();
+            }
+        }
+        if tool == "project_save"
+            && args
+                .get("path")
+                .and_then(|p| p.as_str())
+                .is_none_or(|p| p.ends_with(".mfc"))
+        {
+            self.dirty = false;
+        }
+        if tool == "transport" {
+            match args.get("mode").and_then(|m| m.as_str()) {
+                Some("song") => self.song_mode = true,
+                Some("pattern") => self.song_mode = false,
+                _ => {}
+            }
+        }
+        self.status = format!("MCP: {tool}");
     }
 
     /// Salva in .mfc (o .flp se l'estensione lo indica).
@@ -270,6 +301,46 @@ impl Studio {
         self.status = format!("Render {:.1} s → {}", out.mix.seconds(), path.display());
         Ok(())
     }
+}
+
+/// Progetto letto da file.
+pub struct Loaded {
+    pub project: Project,
+    /// Percorso su cui salvare in place (solo per i `.mfc`).
+    pub save_path: Option<PathBuf>,
+    pub warnings: Vec<String>,
+}
+
+/// Legge un progetto `.mfc`, `.flp` o `.mid`/`.midi` (il MIDI diventa un nuovo progetto).
+pub fn load_project(path: &Path) -> Result<Loaded, String> {
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    let (project, warnings) = match ext.as_str() {
+        "flp" => {
+            let (_, imp) = mfc_flp::read_file(path).map_err(|e| e.to_string())?;
+            (imp.project, imp.warnings)
+        }
+        "mid" | "midi" => {
+            let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
+            let mut p = Project::new(path.file_stem().and_then(|s| s.to_str()).unwrap_or("MIDI"));
+            let imp = mfc_midi::parse_midi(&bytes, p.time.ppq).map_err(|e| e.to_string())?;
+            let (pat, _) = mfc_midi::import_into_project(&mut p, &imp, "MIDI").map_err(|e| e.to_string())?;
+            p.current_pattern = Some(pat);
+            (p, Vec::new())
+        }
+        _ => {
+            let txt = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
+            (Project::from_json(&txt).map_err(|e| e.to_string())?, Vec::new())
+        }
+    };
+    Ok(Loaded {
+        project,
+        save_path: (ext == "mfc").then(|| path.to_path_buf()),
+        warnings,
+    })
 }
 
 fn start_engine(project: &Project) -> (EngineHandle, Backend, bool) {

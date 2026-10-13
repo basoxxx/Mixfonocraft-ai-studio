@@ -1370,9 +1370,7 @@ name = "mfc-app"
 version = "0.2.0"
 dependencies = [
  "mfc-core",
- "mfc-flp",
  "mfc-gui",
- "mfc-midi",
  "winresource",
 ]
 
@@ -1436,10 +1434,13 @@ dependencies = [
  "mfc-core",
  "mfc-engine",
  "mfc-flp",
+ "mfc-mcp",
  "mfc-midi",
  "mfc-plugins",
+ "objc2 0.6.5",
  "png",
  "serde_json",
+ "winit",
 ]
 
 [[package]]
