@@ -164,6 +164,10 @@ pub trait Generator: Send {
     fn process(&mut self, left: &mut [f32], right: &mut [f32]);
     /// Numero di voci attive (0 = silenzioso, il motore può saltare il processing).
     fn active_voices(&self) -> usize;
+    /// Tempo del progetto in BPM (LFO sincronizzati, ecc.). Il motore lo chiama alla
+    /// costruzione del grafo e a ogni cambio di tempo (anche da automazione), dal thread
+    /// audio: non deve allocare né bloccare.
+    fn set_tempo(&mut self, _bpm: f32) {}
 }
 
 /// Effetto (slot dell'insert del mixer).
@@ -179,6 +183,9 @@ pub trait Effect: Send {
     fn latency(&self) -> usize {
         0
     }
+    /// Tempo del progetto in BPM (delay e LFO sincronizzati). Stesse regole di
+    /// [`Generator::set_tempo`]: chiamato dal thread audio, niente allocazioni.
+    fn set_tempo(&mut self, _bpm: f32) {}
 }
 
 /// Audio campionato condiviso tra istanze.

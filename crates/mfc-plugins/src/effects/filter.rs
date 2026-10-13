@@ -3,6 +3,7 @@
 use super::{apply_defaults, frames, param_value, sr_ok, DEFAULT_SR};
 use crate::api::{Effect, ParamDesc, PluginDescriptor, PluginRole};
 use crate::ids;
+use crate::sync::{lfo_rate, sanitize_bpm, DEFAULT_BPM, SYNC_CHOICES};
 use mfc_dsp::{Lfo, Smoother, Svf, SvfMode};
 
 /// Modi del filtro (valore del parametro `type`).
@@ -19,6 +20,7 @@ pub static DESCRIPTOR: PluginDescriptor = PluginDescriptor {
         ParamDesc::new("resonance", "Resonance", 0.0, 1.0, 0.2, ""),
         ParamDesc::new("lfo_amount", "LFO amount", 0.0, 4.0, 0.0, "oct"),
         ParamDesc::new("lfo_rate", "LFO rate", 0.01, 20.0, 1.0, "Hz"),
+        ParamDesc::choice("lfo_sync", "LFO sync", SYNC_CHOICES, 0),
     ],
 };
 
@@ -32,6 +34,12 @@ pub struct Filter {
     log_cutoff: Smoother,
     lfo: Lfo,
     lfo_amount: f32,
+    /// Rate libero dell'LFO (Hz).
+    lfo_rate: f32,
+    /// Divisione di sync (indice in [`SYNC_CHOICES`], 0 = Off).
+    lfo_sync: f32,
+    /// Tempo del progetto (BPM).
+    bpm: f32,
 }
 
 impl Default for Filter {
@@ -49,10 +57,18 @@ impl Filter {
             log_cutoff: Smoother::new(0.02, DEFAULT_SR, 1000f32.log2()),
             lfo: Lfo::new(DEFAULT_SR),
             lfo_amount: 0.0,
+            lfo_rate: 1.0,
+            lfo_sync: 0.0,
+            bpm: DEFAULT_BPM,
         };
         apply_defaults(&DESCRIPTOR, |n, v| s.set_param(n, v));
         s.reset();
         s
+    }
+
+    /// Rate dell'LFO libero o derivato dal tempo (sync attivo).
+    fn apply_rate(&mut self) {
+        self.lfo.set_rate(lfo_rate(self.lfo_rate, self.lfo_sync, self.bpm));
     }
 }
 
@@ -72,6 +88,7 @@ impl Effect for Filter {
         }
         self.log_cutoff.set_sample_rate(sample_rate);
         self.lfo.set_sample_rate(sample_rate);
+        self.apply_rate();
         self.reset();
     }
 
@@ -98,9 +115,21 @@ impl Effect for Filter {
                 }
             }
             "lfo_amount" => self.lfo_amount = v,
-            "lfo_rate" => self.lfo.set_rate(v),
+            "lfo_rate" => {
+                self.lfo_rate = v;
+                self.apply_rate();
+            }
+            "lfo_sync" => {
+                self.lfo_sync = v;
+                self.apply_rate();
+            }
             _ => {}
         }
+    }
+
+    fn set_tempo(&mut self, bpm: f32) {
+        self.bpm = sanitize_bpm(bpm);
+        self.apply_rate();
     }
 
     fn reset(&mut self) {

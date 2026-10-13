@@ -4,7 +4,8 @@
 //!   unison fino a 8 voci con detune e spread stereo; sub-oscillatore e rumore.
 //! - Filtro multimodo (LP/HP/BP/notch) 12 o 24 dB/ottava con drive, inviluppo dedicato,
 //!   key tracking e velocity.
-//! - Due LFO globali con destinazione (pitch, cutoff, PW, volume, pan).
+//! - Due LFO globali con destinazione (pitch, cutoff, PW, volume, pan), con rate libero
+//!   o sincronizzato al tempo del progetto (`lfo1_sync` / `lfo2_sync`).
 //! - Modalità Poly, Mono e Legato con glide.
 //! - Preset di fabbrica in [`PRESETS`].
 //!
@@ -14,6 +15,7 @@
 use super::{apply_defaults, count_active, frames, param_value, pick_voice, PolyVoice, VoiceTag, DEFAULT_SR, OFF_ON};
 use crate::api::{Generator, NoteOn, ParamDesc, PluginDescriptor, PluginRole, Preset};
 use crate::ids;
+use crate::sync::{lfo_rate, sanitize_bpm, DEFAULT_BPM, SYNC_CHOICES};
 use mfc_dsp::{midi_to_hz, pan_gains, Adsr, Lfo, LfoShape, Oscillator, Rng, Svf, SvfMode, Waveform};
 
 const WAVES: &[&str] = &["Sine", "Triangle", "Saw", "Square"];
@@ -72,11 +74,13 @@ pub static DESCRIPTOR: PluginDescriptor = PluginDescriptor {
         ParamDesc::new("aenv_release", "Release", 0.0, 10.0, 0.25, "s"),
         ParamDesc::choice("lfo1_shape", "Forma", LFO_SHAPES, 0),
         ParamDesc::new("lfo1_rate", "Rate", 0.01, 30.0, 5.0, "Hz"),
+        ParamDesc::choice("lfo1_sync", "Sync", SYNC_CHOICES, 0),
         ParamDesc::choice("lfo1_dest", "Destinazione", LFO_DEST, 1),
         ParamDesc::new("lfo1_amount", "Quantità", 0.0, 1.0, 0.0, ""),
         ParamDesc::choice("lfo1_retrig", "Retrigger", OFF_ON, 0),
         ParamDesc::choice("lfo2_shape", "Forma", LFO_SHAPES, 1),
         ParamDesc::new("lfo2_rate", "Rate", 0.01, 30.0, 0.5, "Hz"),
+        ParamDesc::choice("lfo2_sync", "Sync", SYNC_CHOICES, 0),
         ParamDesc::choice("lfo2_dest", "Destinazione", LFO_DEST, 2),
         ParamDesc::new("lfo2_amount", "Quantità", 0.0, 1.0, 0.0, ""),
         ParamDesc::choice("lfo2_retrig", "Retrigger", OFF_ON, 0),
@@ -246,6 +250,7 @@ pub static PRESETS: &[Preset] = &[
             ("flt_drive", 0.5),
             ("flt_env", 0.0),
             ("lfo1_rate", 3.0),
+            ("lfo1_sync", 8.0),
             ("lfo1_dest", 2.0),
             ("lfo1_amount", 0.7),
             ("lfo1_retrig", 1.0),
@@ -467,9 +472,20 @@ impl OscCfg {
 #[derive(Debug, Clone, Copy)]
 struct LfoCfg {
     lfo: Lfo,
+    /// Rate libero (Hz), usato quando il sync è Off.
+    rate: f32,
+    /// Indice in [`SYNC_CHOICES`] (0 = Off).
+    sync: f32,
     dest: u8,
     amount: f32,
     retrig: bool,
+}
+
+impl LfoCfg {
+    /// Applica all'LFO il rate libero o quello derivato dal tempo.
+    fn apply_rate(&mut self, bpm: f32) {
+        self.lfo.set_rate(lfo_rate(self.rate, self.sync, bpm));
+    }
 }
 
 /// Destinazioni (indici di [`LFO_DEST`]).
@@ -537,6 +553,8 @@ pub struct Nova {
     fenv: [f32; 4],
     aenv: [f32; 4],
     lfos: [LfoCfg; 2],
+    /// Tempo del progetto (BPM) per gli LFO sincronizzati.
+    bpm: f32,
     mode: u8,
     glide: f32,
     vel_sens: f32,
@@ -592,6 +610,8 @@ impl Nova {
         };
         let lfo = LfoCfg {
             lfo: Lfo::new(DEFAULT_SR),
+            rate: 1.0,
+            sync: 0.0,
             dest: 0,
             amount: 0.0,
             retrig: false,
@@ -618,6 +638,7 @@ impl Nova {
             fenv: [0.005, 0.35, 0.2, 0.3],
             aenv: [0.005, 0.3, 0.8, 0.25],
             lfos: [lfo; 2],
+            bpm: DEFAULT_BPM,
             mode: 0,
             glide: 0.0,
             vel_sens: 0.6,
@@ -814,7 +835,14 @@ impl Generator for Nova {
                 let l = &mut self.lfos[i];
                 match field {
                     "shape" => l.lfo.set_shape(lfo_shape(v)),
-                    "rate" => l.lfo.set_rate(v),
+                    "rate" => {
+                        l.rate = v;
+                        l.apply_rate(self.bpm);
+                    }
+                    "sync" => {
+                        l.sync = v;
+                        l.apply_rate(self.bpm);
+                    }
                     "dest" => l.dest = v as u8,
                     "amount" => l.amount = v,
                     "retrig" => l.retrig = v >= 0.5,
@@ -971,6 +999,13 @@ impl Generator for Nova {
                 v.fenv.note_off();
                 v.aenv.note_off();
             }
+        }
+    }
+
+    fn set_tempo(&mut self, bpm: f32) {
+        self.bpm = sanitize_bpm(bpm);
+        for l in &mut self.lfos {
+            l.apply_rate(self.bpm);
         }
     }
 

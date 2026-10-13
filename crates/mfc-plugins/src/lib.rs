@@ -8,6 +8,7 @@ pub mod effects;
 pub mod external;
 pub mod generators;
 pub mod sample;
+pub mod sync;
 
 pub use api::*;
 pub use external::{external_host, set_external_host, ExternalHost};
