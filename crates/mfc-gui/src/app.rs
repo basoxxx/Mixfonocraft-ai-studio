@@ -1,14 +1,16 @@
 //! Finestra principale: menu, transport, browser, viste centrali, editor plugin.
 
-use egui::{Align, Key, KeyboardShortcut, Layout, Modifiers, RichText};
-use mfc_core::{Command, Project};
+use std::path::{Path, PathBuf};
+
+use egui::{Align, Color32, Key, KeyboardShortcut, Layout, Modifiers, RichText, Sense, Stroke};
+use mfc_core::{ChannelKind, Command, Outcome, Project};
 
 use crate::state::{Studio, View};
 use crate::theme::{self, pal};
 use crate::views;
 
-/// Dialogo "percorso file" minimale (nessuna dipendenza da dialoghi nativi).
-#[derive(Debug, Clone, PartialEq)]
+/// Azioni che richiedono un file (menu, scorciatoie, drag & drop).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum FileAction {
     Open,
     SaveAs,
@@ -17,9 +19,115 @@ enum FileAction {
     ExportMidi,
 }
 
+impl FileAction {
+    fn title(self) -> &'static str {
+        match self {
+            FileAction::Open => "Apri progetto",
+            FileAction::SaveAs => "Salva progetto",
+            FileAction::RenderWav => "Esporta WAV",
+            FileAction::ExportFlp => "Esporta FLP",
+            FileAction::ExportMidi => "Esporta MIDI",
+        }
+    }
+
+    /// Estensione aggiunta se il percorso scelto non ne ha una.
+    fn ext(self) -> &'static str {
+        match self {
+            FileAction::Open => "",
+            FileAction::SaveAs => "mfc",
+            FileAction::RenderWav => "wav",
+            FileAction::ExportFlp => "flp",
+            FileAction::ExportMidi => "mid",
+        }
+    }
+
+    /// Filtri del dialogo nativo (il primo è quello predefinito).
+    fn filters(self) -> &'static [(&'static str, &'static [&'static str])] {
+        match self {
+            FileAction::Open => &[
+                ("Progetti e file supportati", &["mfc", "flp", "mid", "midi"]),
+                ("Progetti Mixfonocraft", &["mfc"]),
+                ("FL Studio", &["flp"]),
+                ("MIDI", &["mid", "midi"]),
+            ],
+            FileAction::SaveAs => &[("Progetti Mixfonocraft", &["mfc"]), ("FL Studio", &["flp"])],
+            FileAction::RenderWav => &[("WAV", &["wav"])],
+            FileAction::ExportFlp => &[("FL Studio", &["flp"])],
+            FileAction::ExportMidi => &[("MIDI", &["mid", "midi"])],
+        }
+    }
+}
+
+/// Dialogo "percorso file" di ripiego, usato solo se i dialoghi nativi non sono disponibili.
 struct FileDialog {
     action: FileAction,
     path: String,
+}
+
+/// Cosa fare di un file trascinato sulla finestra.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DropAction {
+    /// Progetto o MIDI: apre (sostituisce il progetto corrente).
+    OpenProject,
+    /// Campione audio: nuovo canale Sampler.
+    LoadSample,
+    Unsupported,
+}
+
+/// Instrada un file trascinato in base all'estensione (senza distinguere le maiuscole).
+fn drop_action(path: &Path) -> DropAction {
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    match ext.as_str() {
+        "mfc" | "flp" | "mid" | "midi" => DropAction::OpenProject,
+        "wav" => DropAction::LoadSample,
+        _ => DropAction::Unsupported,
+    }
+}
+
+/// Nome di file suggerito dal titolo del progetto (caratteri non validi sostituiti).
+fn default_file_name(title: &str, ext: &str) -> String {
+    let clean: String = title
+        .trim()
+        .chars()
+        .map(|c| {
+            if "/\\:*?\"<>|".contains(c) || c.is_control() {
+                '_'
+            } else {
+                c
+            }
+        })
+        .collect();
+    let stem = if clean.is_empty() {
+        "progetto".to_string()
+    } else {
+        clean
+    };
+    format!("{stem}.{ext}")
+}
+
+/// Aggiunge l'estensione predefinita se il percorso scelto non ne ha una.
+fn with_default_extension(path: PathBuf, ext: &str) -> PathBuf {
+    if path.extension().is_some() || ext.is_empty() {
+        path
+    } else {
+        path.with_extension(ext)
+    }
+}
+
+/// I dialoghi nativi richiedono un display (su Linux: X11 o Wayland).
+fn native_dialogs_available() -> bool {
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        std::env::var_os("DISPLAY").is_some() || std::env::var_os("WAYLAND_DISPLAY").is_some()
+    }
+    #[cfg(not(all(unix, not(target_os = "macos"))))]
+    {
+        true
+    }
 }
 
 /// L'applicazione eframe.
@@ -28,6 +136,7 @@ pub struct StudioApp {
     piano_roll: views::piano_roll::PianoRoll,
     playlist: views::playlist::PlaylistView,
     dialog: Option<FileDialog>,
+    audio_settings: views::settings::AudioSettings,
 }
 
 impl StudioApp {
@@ -37,6 +146,7 @@ impl StudioApp {
             piano_roll: Default::default(),
             playlist: Default::default(),
             dialog: None,
+            audio_settings: Default::default(),
         }
     }
 
@@ -46,6 +156,7 @@ impl StudioApp {
             return;
         }
         self.shortcuts(ui.ctx());
+        self.handle_dropped_files(ui.ctx());
         egui::Panel::top("transport")
             .exact_size(52.0)
             .frame(
@@ -94,7 +205,9 @@ impl StudioApp {
                 });
             });
         views::plugin_editor::show(ui.ctx(), &mut self.studio);
+        views::settings::show(ui.ctx(), &mut self.studio, &mut self.audio_settings);
         self.file_dialog(ui.ctx());
+        drop_overlay(ui.ctx());
         if self.studio.engine.shared.is_playing() {
             ui.ctx().request_repaint();
         } else {
@@ -107,6 +220,10 @@ impl StudioApp {
         let undo = KeyboardShortcut::new(Modifiers::COMMAND, Key::Z);
         let redo = KeyboardShortcut::new(Modifiers::COMMAND, Key::Y);
         let save = KeyboardShortcut::new(Modifiers::COMMAND, Key::S);
+        let save_as = KeyboardShortcut::new(Modifiers::COMMAND | Modifiers::SHIFT, Key::S);
+        let open = KeyboardShortcut::new(Modifiers::COMMAND, Key::O);
+        // Ctrl+Shift+S va controllato prima di Ctrl+S: egui accetta Ctrl+S anche con Shift premuto.
+        let (mut do_open, mut do_save, mut do_save_as) = (false, false, false);
         ctx.input_mut(|i| {
             if i.consume_shortcut(&undo) {
                 self.studio.undo();
@@ -114,21 +231,21 @@ impl StudioApp {
             if i.consume_shortcut(&redo) {
                 self.studio.redo();
             }
-            if i.consume_shortcut(&save) {
-                match self.studio.path.clone() {
-                    Some(p) => {
-                        if let Err(e) = self.studio.save_as(&p) {
-                            self.studio.status = e;
-                        }
-                    }
-                    None => {
-                        self.dialog = Some(FileDialog {
-                            action: FileAction::SaveAs,
-                            path: "project.mfc".into(),
-                        })
-                    }
-                }
-            }
+            do_save_as = i.consume_shortcut(&save_as);
+            do_save = !do_save_as && i.consume_shortcut(&save);
+            do_open = i.consume_shortcut(&open);
+        });
+        // Le azioni su file sono fuori dal lock dell'input: i dialoghi nativi sono bloccanti.
+        if do_open {
+            self.request_file(FileAction::Open);
+        }
+        if do_save_as {
+            self.request_file(FileAction::SaveAs);
+        }
+        if do_save {
+            self.save_project();
+        }
+        ctx.input_mut(|i| {
             if typing {
                 return;
             }
@@ -190,39 +307,35 @@ impl StudioApp {
             ui.add_space(8.0);
 
             ui.menu_button(RichText::new("File").color(pal::TEXT_DIM), |ui| {
-                ui.set_min_width(220.0);
+                ui.set_min_width(240.0);
                 if ui.button("Nuovo progetto").clicked() {
                     self.studio.replace_project(Project::new("Untitled"), None);
                     ui.close();
                 }
                 ui.separator();
-                for (label, action, default) in [
-                    ("Apri…  (.mfc · .flp · .mid)", FileAction::Open, ""),
-                    ("Salva con nome…", FileAction::SaveAs, "project.mfc"),
-                ] {
-                    if ui.button(label).clicked() {
-                        self.dialog = Some(FileDialog {
-                            action,
-                            path: default.into(),
-                        });
-                        ui.close();
-                    }
+                if ui.add(egui::Button::new("Apri…").shortcut_text("Ctrl+O")).clicked() {
+                    self.request_file(FileAction::Open);
+                    ui.close();
+                }
+                if ui.add(egui::Button::new("Salva").shortcut_text("Ctrl+S")).clicked() {
+                    self.save_project();
+                    ui.close();
+                }
+                if ui
+                    .add(egui::Button::new("Salva con nome…").shortcut_text("Ctrl+Shift+S"))
+                    .clicked()
+                {
+                    self.request_file(FileAction::SaveAs);
+                    ui.close();
                 }
                 ui.separator();
-                for (label, action, default) in [
-                    ("Esporta audio WAV…", FileAction::RenderWav, "mix.wav"),
-                    (
-                        "Esporta progetto FL Studio (.flp)…",
-                        FileAction::ExportFlp,
-                        "project.flp",
-                    ),
-                    ("Esporta MIDI…", FileAction::ExportMidi, "song.mid"),
+                for (label, action) in [
+                    ("Esporta audio WAV…", FileAction::RenderWav),
+                    ("Esporta progetto FL Studio (.flp)…", FileAction::ExportFlp),
+                    ("Esporta MIDI…", FileAction::ExportMidi),
                 ] {
                     if ui.button(label).clicked() {
-                        self.dialog = Some(FileDialog {
-                            action,
-                            path: default.into(),
-                        });
+                        self.request_file(action);
                         ui.close();
                     }
                 }
@@ -246,6 +359,13 @@ impl StudioApp {
                     .clicked()
                 {
                     self.studio.redo();
+                }
+            });
+            ui.menu_button(RichText::new("Audio").color(pal::TEXT_DIM), |ui| {
+                ui.set_min_width(200.0);
+                if ui.button("Impostazioni audio…").clicked() {
+                    self.audio_settings.request_open(&self.studio);
+                    ui.close();
                 }
             });
             toolbar_sep(ui, h);
@@ -406,9 +526,17 @@ impl StudioApp {
 
     fn status_bar(&mut self, ui: &mut egui::Ui) {
         ui.horizontal_centered(|ui| {
-            let (dot, _) = ui.allocate_exact_size(egui::vec2(8.0, 8.0), egui::Sense::hover());
+            let (dot, dot_resp) = ui.allocate_exact_size(egui::vec2(8.0, 8.0), Sense::click());
             let c = if self.studio.audible { pal::GREEN } else { pal::YELLOW };
             ui.painter().circle_filled(dot.center(), 3.5, c);
+            let tip = if self.studio.audible {
+                "Uscita audio attiva · clic per le impostazioni"
+            } else {
+                "Uscita audio non disponibile · clic per le impostazioni"
+            };
+            if dot_resp.on_hover_text(tip).clicked() {
+                self.audio_settings.request_open(&self.studio);
+            }
             ui.label(RichText::new(&self.studio.status).size(11.0).color(pal::TEXT_DIM));
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 let p = &self.studio.project;
@@ -429,26 +557,159 @@ impl StudioApp {
                     .size(11.0)
                     .color(pal::TEXT_FAINT),
                 );
+                ui.label(RichText::new("·").color(pal::TEXT_FAINT));
+                let cpu = self.studio.engine.shared.cpu_load();
+                let cpu_color = if cpu > 0.8 { pal::RED } else { pal::TEXT_FAINT };
+                ui.label(
+                    RichText::new(format!("CPU {:.0}%", cpu * 100.0))
+                        .size(11.0)
+                        .color(cpu_color),
+                );
             });
         });
     }
 
+    /// Nome di file suggerito per l'azione (vuoto per l'apertura).
+    fn suggested_name(&self, action: FileAction) -> String {
+        let title = &self.studio.project.info.title;
+        match action {
+            FileAction::Open => String::new(),
+            FileAction::SaveAs => self
+                .studio
+                .path
+                .as_ref()
+                .and_then(|p| p.file_name())
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_else(|| default_file_name(title, "mfc")),
+            FileAction::RenderWav => default_file_name(title, "wav"),
+            FileAction::ExportFlp => default_file_name(title, "flp"),
+            FileAction::ExportMidi => default_file_name(title, "mid"),
+        }
+    }
+
+    /// Avvia un'azione su file: dialogo nativo se disponibile, altrimenti campo di testo.
+    fn request_file(&mut self, action: FileAction) {
+        if !native_dialogs_available() {
+            self.dialog = Some(FileDialog {
+                action,
+                path: self.suggested_name(action),
+            });
+            return;
+        }
+        if let Some(path) = self.pick_native(action) {
+            self.run_file_action(action, path);
+        }
+    }
+
+    /// Dialogo nativo (apertura o salvataggio). `None` = annullato.
+    fn pick_native(&self, action: FileAction) -> Option<PathBuf> {
+        let mut dlg = rfd::FileDialog::new().set_title(action.title());
+        for (name, exts) in action.filters() {
+            dlg = dlg.add_filter(*name, exts);
+        }
+        if let Some(dir) = self.studio.path.as_ref().and_then(|p| p.parent()) {
+            dlg = dlg.set_directory(dir);
+        }
+        if action == FileAction::Open {
+            dlg.pick_file()
+        } else {
+            dlg.set_file_name(self.suggested_name(action)).save_file()
+        }
+    }
+
+    /// Salva sul percorso corrente; senza percorso chiede dove salvare.
+    fn save_project(&mut self) {
+        match self.studio.path.clone() {
+            Some(p) => {
+                if let Err(e) = self.studio.save_as(&p) {
+                    self.studio.status = format!("Errore: {e}");
+                }
+            }
+            None => self.request_file(FileAction::SaveAs),
+        }
+    }
+
+    /// Esegue l'azione sul percorso scelto e aggiorna la barra di stato.
+    fn run_file_action(&mut self, action: FileAction, path: PathBuf) {
+        let path = if action == FileAction::Open {
+            path
+        } else {
+            with_default_extension(path, action.ext())
+        };
+        let res = match action {
+            FileAction::Open => self.studio.open(&path),
+            FileAction::SaveAs => self.studio.save_as(&path),
+            FileAction::RenderWav => self.studio.render(&path),
+            FileAction::ExportFlp => mfc_flp::write_file(&path, &self.studio.project)
+                .map(|_| ())
+                .map_err(|e| e.to_string()),
+            FileAction::ExportMidi => mfc_midi::export_song(&self.studio.project)
+                .map_err(|e| e.to_string())
+                .and_then(|b| std::fs::write(&path, b).map_err(|e| e.to_string())),
+        };
+        match res {
+            Ok(()) if matches!(action, FileAction::ExportFlp | FileAction::ExportMidi) => {
+                self.studio.status = format!("Esportato {}", path.display());
+            }
+            Ok(()) => {}
+            Err(e) => self.studio.status = format!("Errore: {e}"),
+        }
+    }
+
+    /// Gestisce i file rilasciati sulla finestra in questo frame.
+    fn handle_dropped_files(&mut self, ctx: &egui::Context) {
+        let dropped = ctx.input(|i| i.raw.dropped_files.clone());
+        for file in dropped {
+            let path = file.path().to_path_buf();
+            match drop_action(&path) {
+                DropAction::OpenProject => self.run_file_action(FileAction::Open, path),
+                DropAction::LoadSample => self.add_sample_channel(&path),
+                DropAction::Unsupported => {
+                    let name = path
+                        .file_name()
+                        .map_or_else(|| path.display().to_string(), |n| n.to_string_lossy().into_owned());
+                    self.studio.status = format!("Formato non supportato: {name}");
+                }
+            }
+        }
+    }
+
+    /// Aggiunge un canale Sampler con il campione indicato.
+    fn add_sample_channel(&mut self, path: &Path) {
+        let name = path
+            .file_stem()
+            .map_or_else(|| "Campione".to_string(), |n| n.to_string_lossy().into_owned());
+        let Some(plugin) = mfc_plugins::default_instance(mfc_plugins::ids::SAMPLER) else {
+            self.studio.status = "Plugin sampler non disponibile".into();
+            return;
+        };
+        let Some(Outcome::Channel(channel)) = self.studio.exec(Command::AddChannel {
+            name: name.clone(),
+            kind: ChannelKind::Sampler,
+            plugin,
+            mixer_insert: None,
+        }) else {
+            return;
+        };
+        let sample = Command::SetChannelSample {
+            channel,
+            path: Some(path.display().to_string()),
+        };
+        if self.studio.exec(sample).is_some() {
+            self.studio.status = format!("Campione aggiunto: {name}");
+        }
+    }
+
     fn file_dialog(&mut self, ctx: &egui::Context) {
         let Some(d) = self.dialog.as_mut() else { return };
-        let title = match d.action {
-            FileAction::Open => "Apri progetto",
-            FileAction::SaveAs => "Salva progetto",
-            FileAction::RenderWav => "Esporta WAV",
-            FileAction::ExportFlp => "Esporta FLP",
-            FileAction::ExportMidi => "Esporta MIDI",
-        };
+        let title = d.action.title();
         let mut confirmed = false;
         let mut cancelled = false;
         egui::Window::new(title)
             .collapsible(false)
             .resizable(false)
             .show(ctx, |ui| {
-                ui.label("Percorso:");
+                ui.label("Percorso (dialogo nativo non disponibile):");
                 let r = ui.text_edit_singleline(&mut d.path);
                 if r.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
                     confirmed = true;
@@ -462,25 +723,42 @@ impl StudioApp {
             self.dialog = None;
         } else if confirmed {
             let d = self.dialog.take().unwrap();
-            let path = std::path::PathBuf::from(d.path.trim());
-            let res = match d.action {
-                FileAction::Open => self.studio.open(&path),
-                FileAction::SaveAs => self.studio.save_as(&path),
-                FileAction::RenderWav => self.studio.render(&path),
-                FileAction::ExportFlp => mfc_flp::write_file(&path, &self.studio.project)
-                    .map(|_| ())
-                    .map_err(|e| e.to_string()),
-                FileAction::ExportMidi => mfc_midi::export_song(&self.studio.project)
-                    .map_err(|e| e.to_string())
-                    .and_then(|b| std::fs::write(&path, b).map_err(|e| e.to_string())),
-            };
-            self.studio.status = match res {
-                Ok(()) if self.studio.status.is_empty() => format!("OK: {}", path.display()),
-                Ok(()) => std::mem::take(&mut self.studio.status),
-                Err(e) => format!("Errore: {e}"),
-            };
+            let path = PathBuf::from(d.path.trim());
+            self.run_file_action(d.action, path);
         }
     }
+}
+
+/// Velo semitrasparente con bordo tratteggiato mentre un file è trascinato sulla finestra.
+fn drop_overlay(ctx: &egui::Context) {
+    let hovering = ctx.input(|i| !i.raw.hovered_files.is_empty());
+    if !hovering {
+        return;
+    }
+    let painter = ctx.layer_painter(egui::LayerId::new(
+        egui::Order::Foreground,
+        egui::Id::new("drop_overlay"),
+    ));
+    let screen = ctx.content_rect();
+    painter.rect_filled(screen, 0.0, Color32::from_rgba_unmultiplied(0x10, 0x12, 0x15, 205));
+    let r = screen.shrink(14.0);
+    let outline = [
+        r.left_top(),
+        r.right_top(),
+        r.right_bottom(),
+        r.left_bottom(),
+        r.left_top(),
+    ];
+    let mut border = Vec::new();
+    egui::Shape::dashed_line_many(&outline, Stroke::new(2.0, pal::ACCENT), 12.0, 7.0, &mut border);
+    painter.extend(border);
+    painter.text(
+        screen.center(),
+        egui::Align2::CENTER_CENTER,
+        "Rilascia per aprire",
+        theme::bold_font(20.0),
+        pal::ACCENT,
+    );
 }
 
 impl eframe::App for StudioApp {
@@ -506,5 +784,35 @@ fn paint_logo(p: &egui::Painter, r: egui::Rect) {
         let bh = (r.height() - 8.0) * h;
         let br = egui::Rect::from_min_size(egui::pos2(x, r.bottom() - 4.0 - bh), egui::vec2(w, bh));
         p.rect_filled(br, 1.5, theme::mix(pal::YELLOW, pal::ACCENT, 1.0 - h));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn drop_routing_by_extension() {
+        assert_eq!(drop_action(Path::new("a/progetto.MFC")), DropAction::OpenProject);
+        assert_eq!(drop_action(Path::new("x.flp")), DropAction::OpenProject);
+        assert_eq!(drop_action(Path::new("x.mid")), DropAction::OpenProject);
+        assert_eq!(drop_action(Path::new("x.midi")), DropAction::OpenProject);
+        assert_eq!(drop_action(Path::new("kick.WAV")), DropAction::LoadSample);
+        assert_eq!(drop_action(Path::new("nota.txt")), DropAction::Unsupported);
+        assert_eq!(drop_action(Path::new("senza_estensione")), DropAction::Unsupported);
+    }
+
+    #[test]
+    fn default_names_are_sanitized() {
+        assert_eq!(default_file_name("a/b:c", "wav"), "a_b_c.wav");
+        assert_eq!(default_file_name("  ", "mid"), "progetto.mid");
+        assert_eq!(
+            with_default_extension(PathBuf::from("mix"), "wav"),
+            PathBuf::from("mix.wav")
+        );
+        assert_eq!(
+            with_default_extension(PathBuf::from("mix.flp"), "wav"),
+            PathBuf::from("mix.flp")
+        );
     }
 }

@@ -23,10 +23,30 @@ pub enum PluginTarget {
     Effect { insert: u16, slot: u16 },
 }
 
+/// Configurazione dell'uscita audio (dispositivo, frequenza, buffer).
+#[cfg(feature = "realtime")]
+pub type AudioConfig = mfc_engine::backend::device::DeviceConfig;
+
+/// Senza la feature `realtime` non esiste un'uscita audio configurabile.
+#[cfg(not(feature = "realtime"))]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct AudioConfig;
+
 enum Backend {
     Null(#[allow(dead_code)] NullBackend),
     #[cfg(feature = "realtime")]
     Device(#[allow(dead_code)] mfc_engine::backend::device::DeviceBackend),
+}
+
+impl Backend {
+    /// `true` se l'audio esce su una scheda reale.
+    fn is_device(&self) -> bool {
+        match self {
+            Backend::Null(_) => false,
+            #[cfg(feature = "realtime")]
+            Backend::Device(_) => true,
+        }
+    }
 }
 
 /// Stato complessivo dello studio.
@@ -45,12 +65,17 @@ pub struct Studio {
     pub engine: EngineHandle,
     /// `true` se l'audio esce su una scheda reale.
     pub audible: bool,
-    _backend: Backend,
+    /// Configurazione audio scelta dall'utente (applicata da [`Studio::restart_audio`]).
+    pub audio_config: AudioConfig,
+    /// Backend attivo; `None` solo durante il riavvio, per rilasciare il dispositivo.
+    _backend: Option<Backend>,
 }
 
 impl Studio {
     pub fn new(project: Project) -> Self {
-        let (handle, backend, audible) = start_engine(&project);
+        let audio_config: AudioConfig = Default::default();
+        let (handle, backend, err) = start_engine(&project, &audio_config);
+        let audible = backend.is_device();
         let selected_channel = project.channels.first().map(|c| c.id);
         let mut s = Self {
             project,
@@ -65,14 +90,43 @@ impl Studio {
             status: if audible {
                 "Audio attivo".into()
             } else {
-                "Audio non disponibile: transport silenzioso".into()
+                match err {
+                    Some(e) => format!("Audio non disponibile ({e}): transport silenzioso"),
+                    None => "Audio non disponibile: transport silenzioso".into(),
+                }
             },
             engine: handle,
             audible,
-            _backend: backend,
+            audio_config,
+            _backend: Some(backend),
         };
         s.apply_mode();
         s
+    }
+
+    /// Applica una nuova configurazione audio: ferma il backend attuale e ne avvia uno nuovo
+    /// con il progetto corrente. Se il dispositivo non si apre, ricade sul backend silenzioso.
+    #[cfg(feature = "realtime")]
+    pub fn restart_audio(&mut self, cfg: AudioConfig) {
+        self.engine.stop();
+        // Rilascia il dispositivo prima di riaprirlo.
+        self._backend = None;
+        let (handle, backend, err) = start_engine(&self.project, &cfg);
+        self.audible = backend.is_device();
+        self.engine = handle;
+        self._backend = Some(backend);
+        self.apply_mode();
+        self.status = match (err, self.audible) {
+            (None, true) => format!(
+                "Audio attivo: {} · {} Hz · buffer {}",
+                cfg.device.as_deref().unwrap_or("predefinito"),
+                self.engine.sample_rate() as u32,
+                cfg.buffer_size.map_or("predefinito".to_string(), |n| n.to_string()),
+            ),
+            (Some(e), _) => format!("Audio non disponibile ({e}): transport silenzioso"),
+            (None, false) => "Audio non disponibile: transport silenzioso".into(),
+        };
+        self.audio_config = cfg;
     }
 
     /// Pattern selezionato (o il primo).
@@ -230,17 +284,31 @@ impl Studio {
     }
 }
 
-fn start_engine(project: &Project) -> (EngineHandle, Backend, bool) {
+/// Avvia il motore sull'uscita scelta; ricade sul backend silenzioso se non disponibile.
+/// Restituisce l'errore del dispositivo, se c'è stato.
+fn start_engine(project: &Project, cfg: &AudioConfig) -> (EngineHandle, Backend, Option<String>) {
     #[cfg(feature = "realtime")]
-    {
-        use mfc_engine::backend::device::{default_sample_rate, DeviceBackend};
-        if let Ok(sr) = default_sample_rate() {
-            let (engine, handle) = Engine::new(project, sr as f32);
-            if let Ok(dev) = DeviceBackend::start(engine) {
-                return (handle, Backend::Device(dev), true);
-            }
-        }
-    }
+    let err = match start_device(project, cfg) {
+        Ok((handle, dev)) => return (handle, Backend::Device(dev), None),
+        Err(e) => Some(e),
+    };
+    #[cfg(not(feature = "realtime"))]
+    let err = {
+        let _ = cfg;
+        None
+    };
     let (engine, handle) = Engine::new(project, 48_000.0);
-    (handle, Backend::Null(NullBackend::start(engine, 512)), false)
+    (handle, Backend::Null(NullBackend::start(engine, 512)), err)
+}
+
+#[cfg(feature = "realtime")]
+fn start_device(
+    project: &Project,
+    cfg: &AudioConfig,
+) -> Result<(EngineHandle, mfc_engine::backend::device::DeviceBackend), String> {
+    use mfc_engine::backend::device::{resolved_sample_rate, DeviceBackend};
+    let sr = resolved_sample_rate(cfg).map_err(|e| e.to_string())?;
+    let (engine, handle) = Engine::new(project, sr as f32);
+    let dev = DeviceBackend::start_with(engine, cfg).map_err(|e| e.to_string())?;
+    Ok((handle, dev))
 }
