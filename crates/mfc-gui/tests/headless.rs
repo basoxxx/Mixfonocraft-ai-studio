@@ -155,3 +155,39 @@ fn plugin_editor_on_foreign_effect_renders() {
     render_frames(&mut app, &ctx, 2);
     assert_eq!(app.studio.project, before);
 }
+
+#[test]
+fn opens_song_mode_on_first_pattern_without_saved_ui() {
+    let mut p = demo_project();
+    // Come dopo una sessione MCP: l'ultimo pattern creato è quello selezionato.
+    let Outcome::Pattern(last) = apply(&mut p, Command::AddPattern { name: "Crash".into() }) else {
+        panic!()
+    };
+    p.current_pattern = Some(last);
+    let first = p.patterns[0].id;
+    let studio = Studio::new(p.clone());
+    assert!(studio.song_mode, "con clip in Playlist si apre in Song");
+    assert_eq!(studio.view, View::Playlist);
+    assert_eq!(studio.current_pattern(), Some(first));
+
+    // Senza clip: Pattern sul Channel Rack.
+    let studio = Studio::new(Project::new("Vuoto"));
+    assert!(!studio.song_mode);
+    assert_eq!(studio.view, View::ChannelRack);
+}
+
+#[test]
+fn saved_ui_state_is_restored() {
+    let dir = std::env::temp_dir().join(format!("mfc_gui_ui_{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("ui.mfc");
+    let mut studio = Studio::new(demo_project());
+    studio.view = View::Mixer;
+    studio.set_song_mode(false);
+    studio.save_as(&path).unwrap();
+    let mut other = Studio::new(Project::new("x"));
+    other.open(&path).unwrap();
+    assert_eq!(other.view, View::Mixer);
+    assert!(!other.song_mode);
+    assert_eq!(other.path.as_deref(), Some(path.as_path()));
+}

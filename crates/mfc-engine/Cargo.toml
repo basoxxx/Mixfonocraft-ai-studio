@@ -13,6 +13,7 @@ realtime = ["dep:cpal"]
 [dependencies]
 mfc-core.workspace = true
 mfc-plugins.workspace = true
+mfc-dsp.workspace = true
 crossbeam-channel.workspace = true
 hound.workspace = true
 thiserror.workspace = true

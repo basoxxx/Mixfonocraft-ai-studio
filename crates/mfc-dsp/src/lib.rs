@@ -11,6 +11,7 @@ pub mod dynamics;
 pub mod env;
 pub mod filter;
 pub mod lfo;
+pub mod loudness;
 pub mod meter;
 pub mod osc;
 pub mod resample;

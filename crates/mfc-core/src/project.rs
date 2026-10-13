@@ -556,6 +556,25 @@ pub struct ProjectInfo {
     pub fl_version: Option<String>,
 }
 
+/// Vista principale salvata dalla GUI.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum UiView {
+    #[default]
+    ChannelRack,
+    PianoRoll,
+    Playlist,
+    Mixer,
+}
+
+/// Stato dell'interfaccia salvato nel progetto, ripristinato all'apertura nella GUI.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct UiState {
+    pub view: UiView,
+    /// Modalità Song (`true`) o Pattern.
+    pub song_mode: bool,
+}
+
 /// Progetto completo.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Project {
@@ -584,6 +603,9 @@ pub struct Project {
     pub current_pattern: Option<PatternId>,
     /// Contatore per generare id univoci.
     pub next_id: u32,
+    /// Vista e modalità dell'ultima sessione GUI (assente nei progetti creati da CLI/MCP).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ui: Option<UiState>,
 }
 
 pub const FORMAT_VERSION: u32 = 1;
@@ -615,6 +637,7 @@ impl Project {
             automations: Vec::new(),
             current_pattern: None,
             next_id: 1,
+            ui: None,
         };
         let pid = PatternId(p.alloc_id());
         p.patterns.push(Pattern::new(pid, "Pattern 1"));

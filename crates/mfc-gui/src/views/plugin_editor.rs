@@ -220,6 +220,8 @@ pub fn format_value(p: &ParamDesc, v: f32) -> String {
         "s" => format!("{v:.3} s"),
         "dB" => format!("{v:+.1} dB"),
         "%" => format!("{v:.0}%"),
+        "insert" if v.round() < 1.0 => "Interno".to_string(),
+        "insert" => format!("Insert {}", v.round()),
         "" if p.max - p.min <= 2.0 => format!("{:.0}%", (v - p.min) / (p.max - p.min).max(1e-6) * 100.0),
         u => format!("{v:.2} {u}"),
     }

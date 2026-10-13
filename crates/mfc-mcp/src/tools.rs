@@ -138,7 +138,7 @@ fn channel_json(p: &Project, c: &Channel) -> Value {
     json!({
         "id": c.id, "name": c.name, "kind": c.kind, "plugin": c.plugin.kind,
         "foreign_plugin": c.plugin.foreign_name, "sample": c.plugin.sample_path,
-        "volume": c.volume, "gain_db": db(c.gain()), "pan": c.pan, "pitch_cents": c.pitch_cents,
+        "volume": c.volume, "volume_db": fader_db(c.volume, CHANNEL_UNITY), "gain_db": db(c.gain()), "pan": c.pan, "pitch_cents": c.pitch_cents,
         "muted": c.muted, "insert": c.mixer_insert, "root_note": key_name(c.root_note), "notes_total": notes,
     })
 }
@@ -149,6 +149,118 @@ fn db(g: f32) -> f32 {
     } else {
         (20.0 * g.log10() * 10.0).round() / 10.0
     }
+}
+
+/// Livello (dB) di un fader dato posizione e posizione di 0 dB.
+fn fader_db(pos: f32, unity: f32) -> f32 {
+    db(fader_gain(pos, unity))
+}
+
+/// Posizione massima dei fader.
+const FADER_MAX: f32 = 1.25;
+
+/// Posizione di un fader da un livello in dB (≤ -120 dB = fader a zero).
+fn fader_from_db(level_db: f32, unity: f32) -> Result<f32, String> {
+    if level_db.is_nan() || level_db == f32::INFINITY {
+        return Err(format!("volume_db non valido: {level_db}"));
+    }
+    if level_db <= -120.0 {
+        return Ok(0.0);
+    }
+    let pos = unity * 10f32.powf(level_db / 20.0);
+    let max_db = 20.0 * (FADER_MAX / unity).log10();
+    if pos > FADER_MAX * 1.005 {
+        return Err(format!(
+            "volume_db {level_db} oltre il massimo del fader ({max_db:+.1} dB)"
+        ));
+    }
+    Ok(pos.min(FADER_MAX))
+}
+
+/// Volume da `volume` (posizione) oppure `volume_db`; non entrambi.
+fn volume_arg(volume: Option<f32>, volume_db: Option<f32>, unity: f32, what: &str) -> Result<Option<f32>, String> {
+    match (volume, volume_db) {
+        (Some(_), Some(_)) => Err(format!("specificare {what} oppure {what}_db, non entrambi")),
+        (Some(v), None) => Ok(Some(v)),
+        (None, Some(d)) => fader_from_db(d, unity).map(Some),
+        (None, None) => Ok(None),
+    }
+}
+
+/// Id creati da un esito (in ordine).
+fn outcome_ids(o: &Outcome, out: &mut Vec<u32>) {
+    match o {
+        Outcome::Channel(id) => out.push(id.0),
+        Outcome::Pattern(id) => out.push(id.0),
+        Outcome::Clip(id) => out.push(id.0),
+        Outcome::Automation(id) => out.push(id.0),
+        Outcome::Many(v) => v.iter().for_each(|x| outcome_ids(x, out)),
+        Outcome::None | Outcome::Count(_) => {}
+    }
+}
+
+/// Verifica che un effetto dell'insert `insert` possa usare `value` come `sidechain_insert`:
+/// -1 = interno; altrimenti un insert diverso dal master e da se stesso, senza creare cicli.
+fn check_sidechain(p: &Project, insert: u16, value: f32) -> Result<(), String> {
+    let src = value.round();
+    if src < 0.0 {
+        return Ok(());
+    }
+    if src < 1.0 {
+        return Err(
+            "sidechain_insert: il master (0) non può fare da chiave; usare -1 per il rilevamento interno".into(),
+        );
+    }
+    let src = src as usize;
+    if src >= p.mixer.inserts.len() {
+        return Err(format!("sidechain_insert: insert {src} inesistente"));
+    }
+    if src == insert as usize {
+        return Err("sidechain_insert: un insert non può fare da chiave a se stesso (usare -1)".into());
+    }
+    // La sorgente deve essere elaborata prima: non deve trovarsi a valle dell'insert.
+    let sc_of = |e: &EffectSlot| e.plugin.param("sidechain_insert").map(f32::round).filter(|v| *v >= 1.0);
+    let mut seen = vec![false; p.mixer.inserts.len()];
+    let mut stack = vec![insert as usize];
+    while let Some(i) = stack.pop() {
+        if i == src {
+            return Err(format!(
+                "sidechain_insert: l'insert {src} riceve già il segnale dell'insert {insert} (ciclo)"
+            ));
+        }
+        if std::mem::replace(&mut seen[i], true) {
+            continue;
+        }
+        stack.extend(
+            p.mixer.inserts[i]
+                .routes
+                .iter()
+                .map(|r| r.target as usize)
+                .filter(|t| *t != MASTER as usize),
+        );
+        for (j, ins) in p.mixer.inserts.iter().enumerate() {
+            if ins.effects.iter().any(|e| sc_of(e) == Some(i as f32)) {
+                stack.push(j);
+            }
+        }
+    }
+    Ok(())
+}
+
+fn insert_json(index: usize, ins: &MixerInsert) -> Value {
+    json!({
+        "insert": index, "name": ins.name, "volume": ins.volume, "volume_db": fader_db(ins.volume, MIXER_UNITY),
+        "gain_db": db(ins.gain()), "pan": ins.pan,
+        "muted": ins.muted, "solo": ins.solo, "stereo_separation": ins.stereo_separation,
+        "routes": ins.routes.iter().map(|r| json!({"to": r.target, "gain": r.gain})).collect::<Vec<_>>(),
+        "effects": ins.effects.iter().enumerate().map(|(k, e)| effect_json(k, e)).collect::<Vec<_>>(),
+    })
+}
+
+fn effect_json(slot: usize, e: &EffectSlot) -> Value {
+    json!({
+        "slot": slot, "plugin": e.plugin.kind, "foreign": e.plugin.foreign_name, "enabled": e.enabled, "mix": e.mix, "params": e.plugin.params,
+    })
 }
 
 fn ticks_from(s: &Session, ticks: Option<u64>, bars: Option<f64>) -> Result<Tick, String> {
@@ -196,8 +308,10 @@ struct ProjectSet {
     /// Metrica, es. 3 per 3/4.
     numerator: Option<u8>,
     denominator: Option<u8>,
-    /// Fader master 0..=1.25 (0.8 = 0 dB).
+    /// Fader master 0..=1.25 (0.8 = 0 dB, lineare in ampiezza). Alternativa: `master_volume_db`.
     master_volume: Option<f32>,
+    /// Volume master in dB (0 = unità, massimo +3.9; ≤ -120 = silenzio).
+    master_volume_db: Option<f32>,
     /// Swing globale 0..=1.
     swing: Option<f32>,
 }
@@ -237,8 +351,10 @@ struct ChannelRef {
 struct ChannelSet {
     channel: u32,
     name: Option<String>,
-    /// Fader 0..=1.25 (0.78 = 0 dB).
+    /// Fader 0..=1.25 (0.78 = 0 dB, lineare in ampiezza). Alternativa: `volume_db`.
     volume: Option<f32>,
+    /// Volume in dB (0 = unità, massimo +4.1; ≤ -120 = silenzio).
+    volume_db: Option<f32>,
     /// -1..=1
     pan: Option<f32>,
     pitch_cents: Option<f32>,
@@ -385,8 +501,10 @@ struct MixerList {
 struct MixerSet {
     insert: u16,
     name: Option<String>,
-    /// Fader 0..=1.25 (0.8 = 0 dB).
+    /// Fader 0..=1.25 (0.8 = 0 dB, lineare in ampiezza). Alternativa: `volume_db`.
     volume: Option<f32>,
+    /// Volume in dB (0 = unità, massimo +3.9; ≤ -120 = silenzio).
+    volume_db: Option<f32>,
     pan: Option<f32>,
     stereo_separation: Option<f32>,
     muted: Option<bool>,
@@ -592,7 +710,7 @@ pub fn all() -> Vec<Tool> {
                     denominator: a.denominator.unwrap_or(sig.denominator),
                 });
             }
-            if let Some(volume) = a.master_volume {
+            if let Some(volume) = volume_arg(a.master_volume, a.master_volume_db, MIXER_UNITY, "master_volume")? {
                 cmds.push(Command::SetMasterVolume { volume });
             }
             if let Some(swing) = a.swing {
@@ -619,7 +737,9 @@ pub fn all() -> Vec<Tool> {
                     .map(|c| serde_json::from_value::<Command>(c).map_err(|e| format!("comando non valido: {e}")))
                     .collect::<Result<Vec<_>, _>>()?;
                 let out = s.exec(Command::Batch { commands })?;
-                Ok(json!({"outcome": outcome_json(&out)}))
+                let mut ids = Vec::new();
+                outcome_ids(&out, &mut ids);
+                Ok(json!({"ids": ids, "outcome": outcome_json(&out)}))
             }
         ),
         // ---- Plugin e Channel Rack
@@ -667,10 +787,11 @@ pub fn all() -> Vec<Tool> {
         tool!("channel_set", "Modifica un canale: nome, volume, pan, pitch, mute, insert, nota radice, parametri, campione.", ChannelSet, |s, a| {
             let ch = ChannelId(a.channel);
             let kind = s.project.channel(ch).ok_or_else(|| format!("canale {ch} inesistente"))?.plugin.kind.clone();
+            let volume = volume_arg(a.volume, a.volume_db, CHANNEL_UNITY, "volume")?;
             let mut cmds = vec![Command::SetChannel {
                 channel: ch,
                 name: a.name,
-                volume: a.volume,
+                volume,
                 pan: a.pan,
                 pitch_cents: a.pitch_cents,
                 muted: a.muted,
@@ -698,23 +819,17 @@ pub fn all() -> Vec<Tool> {
             Ok(json!({"removed": a.channel}))
         }),
         tool!("channel_clone", "Duplica un canale.", ChannelRef, |s, a| {
-            let out = s.exec(Command::CloneChannel { channel: ChannelId(a.channel) })?;
-            Ok(json!({"created": outcome_json(&out)}))
+            let Outcome::Channel(id) = s.exec(Command::CloneChannel { channel: ChannelId(a.channel) })? else { unreachable!() };
+            Ok(channel_json(&s.project, s.project.channel(id).unwrap()))
         }),
         // ---- Pattern
         tool!("pattern_add", "Crea un pattern vuoto e lo seleziona.", NameArg, |s, a| {
             let Outcome::Pattern(id) = s.exec(Command::AddPattern { name: a.name })? else { unreachable!() };
             s.exec(Command::SelectPattern { pattern: id })?;
-            Ok(json!({"pattern": id}))
+            Ok(pattern_json(s, id))
         }),
         tool!("pattern_list", "Elenca i pattern con lunghezza e numero di note per canale.", NoArgs, |s, _| {
-            let tb = s.project.time;
-            Ok(json!({"current": s.project.current_pattern, "patterns": s.project.patterns.iter().map(|p| json!({
-                "id": p.id, "name": p.name,
-                "length_ticks": p.effective_length(&tb),
-                "length_bars": p.effective_length(&tb) as f64 / tb.ticks_per_bar() as f64,
-                "notes": p.notes.iter().map(|(c, n)| (c.to_string(), n.len())).collect::<BTreeMap<_, _>>(),
-            })).collect::<Vec<_>>()}))
+            Ok(json!({"current": s.project.current_pattern, "patterns": s.project.patterns.iter().map(|p| pattern_json(s, p.id)).collect::<Vec<_>>()}))
         }),
         tool!("pattern_select", "Seleziona il pattern corrente.", PatternRef, |s, a| {
             s.exec(Command::SelectPattern { pattern: PatternId(a.pattern) })?;
@@ -726,8 +841,8 @@ pub fn all() -> Vec<Tool> {
             Ok(json!({"ok": true}))
         }),
         tool!("pattern_clone", "Duplica un pattern.", PatternRef, |s, a| {
-            let out = s.exec(Command::ClonePattern { pattern: PatternId(a.pattern) })?;
-            Ok(json!({"created": outcome_json(&out)}))
+            let Outcome::Pattern(id) = s.exec(Command::ClonePattern { pattern: PatternId(a.pattern) })? else { unreachable!() };
+            Ok(pattern_json(s, id))
         }),
         tool!("pattern_remove", "Elimina un pattern (e le sue clip in Playlist).", PatternRef, |s, a| {
             s.exec(Command::RemovePattern { pattern: PatternId(a.pattern) })?;
@@ -826,7 +941,7 @@ pub fn all() -> Vec<Tool> {
                 at = clip.end();
                 ids.push(id);
             }
-            Ok(json!({"clips": ids, "end": at}))
+            Ok(json!({"id": ids[0], "clips": ids, "end": at}))
         }),
         tool!("playlist_list", "Elenca le clip della Playlist.", NoArgs, |s, _| {
             let bar = s.project.time.ticks_per_bar() as f64;
@@ -858,22 +973,16 @@ pub fn all() -> Vec<Tool> {
             let list: Vec<Value> = s.project.mixer.inserts.iter().enumerate().filter(|(i, ins)| {
                 a.all.unwrap_or(false) || *i == 0 || used.contains(&(*i as u16)) || !ins.effects.is_empty()
                     || ins.routes.iter().any(|r| r.target != MASTER) || ins.muted || ins.solo
-            }).map(|(i, ins)| json!({
-                "insert": i, "name": ins.name, "volume": ins.volume, "gain_db": db(ins.gain()), "pan": ins.pan,
-                "muted": ins.muted, "solo": ins.solo, "stereo_separation": ins.stereo_separation,
-                "routes": ins.routes.iter().map(|r| json!({"to": r.target, "gain": r.gain})).collect::<Vec<_>>(),
-                "effects": ins.effects.iter().enumerate().map(|(k, e)| json!({
-                    "slot": k, "plugin": e.plugin.kind, "foreign": e.plugin.foreign_name, "enabled": e.enabled, "mix": e.mix, "params": e.plugin.params,
-                })).collect::<Vec<_>>(),
-            })).collect();
+            }).map(|(i, ins)| insert_json(i, ins)).collect();
             Ok(json!({"inserts": list}))
         }),
         tool!("mixer_set", "Modifica un insert del mixer (0 = master).", MixerSet, |s, a| {
+            let volume = volume_arg(a.volume, a.volume_db, MIXER_UNITY, "volume")?;
             s.exec(Command::SetInsert {
-                insert: a.insert, name: a.name, volume: a.volume, pan: a.pan, stereo_separation: a.stereo_separation,
+                insert: a.insert, name: a.name, volume, pan: a.pan, stereo_separation: a.stereo_separation,
                 muted: a.muted, solo: a.solo, phase_invert: a.phase_invert, swap_lr: a.swap_lr,
             })?;
-            Ok(json!({"ok": true}))
+            Ok(insert_json(a.insert as usize, s.project.insert(a.insert).unwrap()))
         }),
         tool!("mixer_route", "Crea/aggiorna/rimuove una mandata tra insert (i cicli sono rifiutati).", MixerRoute, |s, a| {
             let gain = if a.remove.unwrap_or(false) { None } else { Some(a.gain.unwrap_or(1.0)) };
@@ -885,8 +994,15 @@ pub fn all() -> Vec<Tool> {
             if mfc_plugins::descriptor(&a.plugin).unwrap().role != mfc_plugins::PluginRole::Effect {
                 return Err(format!("{} è un generatore: usare channel_add", a.plugin));
             }
-            let out = s.exec(Command::AddEffect { insert: a.insert, plugin: inst, slot: a.slot })?;
-            Ok(json!({"insert": a.insert, "slot": outcome_json(&out)}))
+            if let Some(v) = inst.param("sidechain_insert") {
+                check_sidechain(&s.project, a.insert, v)?;
+            }
+            let Outcome::Count(slot) = s.exec(Command::AddEffect { insert: a.insert, plugin: inst, slot: a.slot })? else { unreachable!() };
+            let e = &s.project.insert(a.insert).unwrap().effects[slot];
+            let mut v = effect_json(slot, e);
+            v["id"] = json!(slot);
+            v["insert"] = json!(a.insert);
+            Ok(v)
         }),
         tool!("mixer_remove_effect", "Rimuove l'effetto da uno slot.", EffectRef, |s, a| {
             s.exec(Command::RemoveEffect { insert: a.insert, slot: a.slot })?;
@@ -907,10 +1023,16 @@ pub fn all() -> Vec<Tool> {
                     None if desc.is_some() => return Err(format!("{kind}: parametro sconosciuto '{param}'")),
                     None => value,
                 };
+                if param == "sidechain_insert" {
+                    check_sidechain(&s.project, a.insert, value)?;
+                }
                 cmds.push(Command::SetEffectParam { insert: a.insert, slot: a.slot, param, value });
             }
             s.exec(Command::Batch { commands: cmds })?;
-            Ok(json!({"ok": true}))
+            let e = &s.project.insert(a.insert).unwrap().effects[a.slot as usize];
+            let mut v = effect_json(a.slot as usize, e);
+            v["insert"] = json!(a.insert);
+            Ok(v)
         }),
         // ---- Automazione
         tool!("automation_add", "Crea una clip di automazione (e opzionalmente la piazza in Playlist).", AutomationAdd, |s, a| {
@@ -923,10 +1045,12 @@ pub fn all() -> Vec<Tool> {
                 cmds.push(Command::PlaceClip { track, position: a.position.unwrap_or(0), length: None, source: ClipSource::Automation(next) });
             }
             let out = s.exec(Command::Batch { commands: cmds })?;
-            Ok(json!({"outcome": outcome_json(&out)}))
+            let mut ids = Vec::new();
+            outcome_ids(&out, &mut ids);
+            Ok(json!({"id": ids.first(), "clip": ids.get(1)}))
         }),
         // ---- Render e transport
-        tool!("render_wav", "Esporta il brano (o un pattern) in WAV, con stem opzionali. Restituisce durata, picco e RMS.", RenderArgs, |s, a| {
+        tool!("render_wav", "Esporta il brano (o un pattern) in WAV, con stem opzionali. Restituisce durata, picco, true peak, RMS, RMS attivo (solo parti sopra -60 dBFS), LUFS integrati e riduzione massima sul master.", RenderArgs, |s, a| {
             let format = match a.format.as_deref().unwrap_or("int24") {
                 "int16" => mfc_engine::WavFormat::Int16,
                 "int24" => mfc_engine::WavFormat::Int24,
@@ -947,14 +1071,23 @@ pub fn all() -> Vec<Tool> {
             }
             let path = s.resolve(&a.path);
             let out = mfc_engine::render_to_file(&s.project, &path, &opts, format).map_err(|e| e.to_string())?;
-            Ok(json!({
-                "path": path.display().to_string(),
-                "seconds": out.mix.seconds(),
-                "peak_db": db(out.mix.peak()),
-                "rms_db": db(out.mix.rms()),
-                "clipping": out.mix.peak() > 1.0,
-                "stems": out.stems.iter().map(|st| json!({"insert": st.insert, "name": st.name, "peak_db": db(st.audio.peak()), "rms_db": db(st.audio.rms())})).collect::<Vec<_>>(),
-            }))
+            let mut v = analysis_json(&out.mix.analyze());
+            v["path"] = json!(path.display().to_string());
+            v["seconds"] = json!(out.mix.seconds());
+            v["clipping"] = json!(out.mix.peak() > 1.0);
+            v["gain_reduction_max_db"] = json!((out.master_gain_reduction_db * 10.0).round() / 10.0);
+            v["stems"] = out.stems.iter().map(|st| {
+                let a = &st.audio;
+                let mut x = json!({
+                    "peak_db": db(a.peak()), "rms_db": db(a.rms()),
+                    "rms_active_db": db(a.rms_active(mfc_engine::ACTIVE_THRESHOLD_DB)),
+                    "lufs_integrated": a.lufs_integrated().map(|l| (l * 10.0).round() / 10.0),
+                });
+                x["insert"] = json!(st.insert);
+                x["name"] = json!(st.name);
+                x
+            }).collect();
+            Ok(v)
         }),
         tool!("transport", "Transport live: play/stop/pause/seek/status, modalità song o pattern.", TransportArgs, |s, a| {
             if a.action == "status" && s.transport.is_none() {
@@ -1007,7 +1140,7 @@ pub fn all() -> Vec<Tool> {
                     .map_err(|e| e.to_string())?;
             s.history.record("midi_import", before);
             s.sync();
-            Ok(json!({"pattern": pat, "channels": chans, "tempo": imp.tempo_bpm}))
+            Ok(json!({"id": pat, "pattern": pat, "channels": chans, "tempo": imp.tempo_bpm}))
         }),
         tool!("midi_export", "Esporta un pattern o l'intero brano in MIDI.", MidiExportArgs, |s, a| {
             let bytes = match a.pattern {
@@ -1042,6 +1175,30 @@ pub fn all() -> Vec<Tool> {
     v
 }
 
+/// Misure di livello in dB: picco, true peak, RMS (tutto il brano e sole parti attive), LUFS.
+fn analysis_json(a: &mfc_engine::Analysis) -> Value {
+    json!({
+        "peak_db": db(a.peak),
+        "true_peak_db": db(a.true_peak),
+        "rms_db": db(a.rms),
+        "rms_active_db": db(a.rms_active),
+        "lufs_integrated": a.lufs_integrated.map(|l| (l * 10.0).round() / 10.0),
+    })
+}
+
+fn pattern_json(s: &Session, id: PatternId) -> Value {
+    let tb = s.project.time;
+    let Some(p) = s.project.pattern(id) else {
+        return json!({"id": id});
+    };
+    json!({
+        "id": p.id, "pattern": p.id, "name": p.name,
+        "length_ticks": p.effective_length(&tb),
+        "length_bars": p.effective_length(&tb) as f64 / tb.ticks_per_bar() as f64,
+        "notes": p.notes.iter().map(|(c, n)| (c.to_string(), n.len())).collect::<BTreeMap<_, _>>(),
+    })
+}
+
 fn project_info(s: &mut Session) -> Result<Value, String> {
     let p = &s.project;
     let tb = p.time;
@@ -1051,7 +1208,7 @@ fn project_info(s: &mut Session) -> Result<Value, String> {
         "tempo": p.tempo, "ppq": tb.ppq,
         "time_signature": format!("{}/{}", tb.signature.numerator, tb.signature.denominator),
         "ticks_per_step": tb.ticks_per_step(), "ticks_per_bar": tb.ticks_per_bar(),
-        "master_volume": p.master_volume, "swing": p.swing,
+        "master_volume": p.master_volume, "master_volume_db": fader_db(p.master_volume, MIXER_UNITY), "swing": p.swing,
         "channels": p.channels.iter().map(|c| json!({"id": c.id, "name": c.name, "plugin": c.plugin.kind, "insert": c.mixer_insert})).collect::<Vec<_>>(),
         "patterns": p.patterns.iter().map(|x| json!({"id": x.id, "name": x.name})).collect::<Vec<_>>(),
         "current_pattern": p.current_pattern,

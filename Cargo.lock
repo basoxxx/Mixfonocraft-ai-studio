@@ -1413,6 +1413,7 @@ dependencies = [
  "crossbeam-channel",
  "hound",
  "mfc-core",
+ "mfc-dsp",
  "mfc-plugins",
  "thiserror 2.0.21",
 ]

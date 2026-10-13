@@ -6,7 +6,7 @@
 use super::{apply_defaults, frames, param_value, sr_ok, DEFAULT_SR, MAX_SR};
 use crate::api::{Effect, ParamDesc, PluginDescriptor, PluginRole};
 use crate::ids;
-use mfc_dsp::{db_to_gain, time_coef, Smoother};
+use mfc_dsp::{db_to_gain, gain_to_db, time_coef, Smoother};
 
 pub static DESCRIPTOR: PluginDescriptor = PluginDescriptor {
     id: ids::LIMITER,
@@ -46,6 +46,8 @@ pub struct Limiter {
     release_ms: f32,
     ceiling: f32,
     input: Smoother,
+    /// Guadagno minimo applicato dall'ultima lettura (metering della riduzione).
+    g_min: f32,
 }
 
 impl Default for Limiter {
@@ -75,6 +77,7 @@ impl Limiter {
             release_ms: 50.0,
             ceiling: 1.0,
             input: Smoother::new(0.01, DEFAULT_SR, 1.0),
+            g_min: 1.0,
         };
         s.allocate(MAX_SR);
         apply_defaults(&DESCRIPTOR, |n, v| s.set_param(n, v));
@@ -143,6 +146,7 @@ impl Effect for Limiter {
         self.box_pos = 0;
         self.box_sum = self.w as f64;
         self.rel_state = 1.0;
+        self.g_min = 1.0;
         self.input.set_immediate(self.input.target());
     }
 
@@ -155,6 +159,7 @@ impl Effect for Limiter {
         let w = self.w;
         let cap = self.dq_val.len();
         let ceil = self.ceiling;
+        let mut g_min = self.g_min;
         for i in 0..count {
             let g_in = self.input.next_sample();
             let xl = left[i] * g_in;
@@ -199,9 +204,20 @@ impl Effect for Limiter {
             let rd = (self.dpos + 1) % w;
             let (dl, dr) = (self.delay[0][rd], self.delay[1][rd]);
             self.dpos = rd;
+            g_min = g_min.min(g);
             left[i] = (dl * g).clamp(-ceil, ceil);
             right[i] = (dr * g).clamp(-ceil, ceil);
             self.n += 1;
+        }
+        self.g_min = g_min;
+    }
+
+    fn take_gain_reduction_db(&mut self) -> f32 {
+        let g = std::mem::replace(&mut self.g_min, 1.0);
+        if g >= 1.0 {
+            0.0
+        } else {
+            gain_to_db(g.max(1e-6))
         }
     }
 

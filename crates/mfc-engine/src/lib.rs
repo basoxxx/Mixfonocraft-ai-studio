@@ -11,4 +11,7 @@ pub mod render;
 
 pub use engine::{Engine, EngineCommand, EngineHandle, PlayMode, SharedState, CHUNK};
 pub use prepared::Prepared;
-pub use render::{render, render_to_file, write_wav, Audio, RenderError, RenderOptions, Rendered, Stem, WavFormat};
+pub use render::{
+    render, render_to_file, write_wav, Analysis, Audio, RenderError, RenderOptions, Rendered, Stem, WavFormat,
+    ACTIVE_THRESHOLD_DB,
+};

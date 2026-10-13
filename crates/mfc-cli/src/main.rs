@@ -131,6 +131,10 @@ enum Cmd {
     },
 }
 
+fn lufs_text(l: Option<f64>) -> String {
+    l.map_or_else(|| "— LUFS".to_string(), |l| format!("{l:.1} LUFS"))
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
     let Some(command) = cli.command else {
@@ -200,13 +204,30 @@ fn main() -> Result<()> {
             let report = render_wav(&loaded.project, &output, &req)?;
             println!("Scritto {}", report.path.display());
             println!("Durata:  {:.3} s", report.seconds);
-            println!("Picco:   {:.1} dBFS", report.peak_db);
-            println!("RMS:     {:.1} dBFS", report.rms_db);
+            println!(
+                "Picco:   {:.1} dBFS (true peak {:.1} dBTP)",
+                report.peak_db, report.true_peak_db
+            );
+            println!(
+                "RMS:     {:.1} dBFS (parti attive {:.1} dBFS)",
+                report.rms_db, report.rms_active_db
+            );
+            println!("Loudness: {}", lufs_text(report.lufs_integrated));
+            if report.gain_reduction_max_db < 0.0 {
+                println!("Riduzione massima sul master: {:.1} dB", report.gain_reduction_max_db);
+            }
             if report.clipping {
                 println!("Attenzione: il mix supera 0 dBFS (clipping)");
             }
             for s in &report.stems {
-                println!("Stem {:>3} {:<14} picco {:.1} dBFS", s.insert, s.name, s.peak_db);
+                println!(
+                    "Stem {:>3} {:<14} picco {:.1} dBFS · RMS attivo {:.1} dBFS · {}",
+                    s.insert,
+                    s.name,
+                    s.peak_db,
+                    s.rms_active_db,
+                    lufs_text(s.lufs_integrated)
+                );
             }
         }
         Cmd::FlpInspect {

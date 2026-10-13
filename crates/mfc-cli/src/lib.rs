@@ -530,7 +530,14 @@ pub struct RenderReport {
     pub path: PathBuf,
     pub seconds: f64,
     pub peak_db: f64,
+    pub true_peak_db: f64,
     pub rms_db: f64,
+    /// RMS sulle sole parti sopra -60 dBFS.
+    pub rms_active_db: f64,
+    /// Loudness integrata EBU R128 (`None` se silenzioso).
+    pub lufs_integrated: Option<f64>,
+    /// Massima riduzione di guadagno degli effetti dinamici sul master (dB, ≤ 0).
+    pub gain_reduction_max_db: f64,
     pub clipping: bool,
     pub stems: Vec<StemReport>,
 }
@@ -540,6 +547,12 @@ pub struct StemReport {
     pub insert: u16,
     pub name: String,
     pub peak_db: f64,
+    pub rms_active_db: f64,
+    pub lufs_integrated: Option<f64>,
+}
+
+fn round1(x: f64) -> f64 {
+    (x * 10.0).round() / 10.0
 }
 
 /// Parsa il formato WAV dell'opzione `--format`.
@@ -569,11 +582,16 @@ pub fn render_wav(project: &Project, out: &Path, req: &RenderRequest) -> Result<
     let rendered = mfc_engine::render_to_file(project, out, &opts, req.format)
         .with_context(|| format!("render di {}", out.display()))?;
     let mix = &rendered.mix;
+    let a = mix.analyze();
     Ok(RenderReport {
         path: out.to_path_buf(),
         seconds: mix.seconds(),
-        peak_db: to_db(mix.peak()),
-        rms_db: to_db(mix.rms()),
+        peak_db: to_db(a.peak),
+        true_peak_db: to_db(a.true_peak),
+        rms_db: to_db(a.rms),
+        rms_active_db: to_db(a.rms_active),
+        lufs_integrated: a.lufs_integrated.map(round1),
+        gain_reduction_max_db: round1(rendered.master_gain_reduction_db as f64),
         clipping: mix.peak() > 1.0,
         stems: rendered
             .stems
@@ -582,6 +600,8 @@ pub fn render_wav(project: &Project, out: &Path, req: &RenderRequest) -> Result<
                 insert: s.insert,
                 name: s.name.clone(),
                 peak_db: to_db(s.audio.peak()),
+                rms_active_db: to_db(s.audio.rms_active(mfc_engine::ACTIVE_THRESHOLD_DB)),
+                lufs_integrated: s.audio.lufs_integrated().map(round1),
             })
             .collect(),
     })

@@ -167,6 +167,16 @@ pub trait Effect: Send {
     fn reset(&mut self);
     /// Elabora in-place. `left.len() == right.len()`.
     fn process(&mut self, left: &mut [f32], right: &mut [f32]);
+    /// Elabora in-place usando `key_l`/`key_r` come segnale di rilevamento (sidechain).
+    /// Le chiavi hanno la stessa lunghezza dei buffer. Default: chiave ignorata.
+    fn process_sidechain(&mut self, left: &mut [f32], right: &mut [f32], _key_l: &[f32], _key_r: &[f32]) {
+        self.process(left, right);
+    }
+    /// Massima riduzione di guadagno (dB, ≤ 0) dall'ultima chiamata, poi azzera.
+    /// Gli effetti che non comprimono restituiscono 0.
+    fn take_gain_reduction_db(&mut self) -> f32 {
+        0.0
+    }
     /// Latenza introdotta (sample).
     fn latency(&self) -> usize {
         0

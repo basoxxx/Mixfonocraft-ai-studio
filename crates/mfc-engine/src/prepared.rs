@@ -49,6 +49,8 @@ pub(crate) struct SlotRt {
     pub enabled: bool,
     pub mix: f32,
     pub params: Vec<(String, f32)>,
+    /// Insert sorgente del sidechain (elaborato prima di questo).
+    pub sidechain: Option<usize>,
 }
 
 pub(crate) struct InsertRt {
@@ -62,6 +64,8 @@ pub(crate) struct InsertRt {
     pub routes: Vec<(usize, f32)>,
     /// Udibile secondo la logica di solo.
     pub audible: bool,
+    /// Qualche effetto usa questo insert come chiave sidechain.
+    pub sidechain_source: bool,
 }
 
 /// Bersaglio di automazione risolto in indici.
@@ -154,6 +158,7 @@ impl Prepared {
                         enabled: s.enabled,
                         mix: s.mix,
                         params: s.plugin.params.iter().map(|(k, v)| (k.clone(), *v)).collect(),
+                        sidechain: sidechain_source(&s.plugin, n_inserts),
                     })
                     .collect(),
                 gain: ins.gain(),
@@ -169,6 +174,7 @@ impl Prepared {
                     .map(|r| (r.target as usize, r.gain))
                     .collect(),
                 audible: true,
+                sidechain_source: false,
             })
             .collect();
         if inserts.is_empty() {
@@ -182,6 +188,7 @@ impl Prepared {
                 swap_lr: false,
                 routes: vec![],
                 audible: true,
+                sidechain_source: false,
             });
         }
 
@@ -244,13 +251,41 @@ fn channel_key(c: &mfc_core::Channel) -> String {
     format!("{}|{}", c.id, plugin_key(&c.plugin))
 }
 
-/// Ordine topologico (Kahn) degli insert seguendo le mandate; il master è sempre ultimo.
-/// Eventuali cicli (possibili in progetti importati) vengono spezzati rimuovendo le mandate residue.
+/// Insert sorgente del sidechain di un effetto (parametro `sidechain_insert` ≥ 1), se valido.
+fn sidechain_source(p: &mfc_core::PluginInstance, n_inserts: usize) -> Option<usize> {
+    let v = p.param("sidechain_insert")?;
+    let i = v.round();
+    (i.is_finite() && i >= 1.0 && (i as usize) < n_inserts).then_some(i as usize)
+}
+
+/// Dipendenze dell'insert `i`: mandate in uscita e insert che usano `i` come chiave sidechain.
+fn successors(inserts: &[InsertRt], i: usize) -> impl Iterator<Item = usize> + '_ {
+    let routes = inserts[i].routes.iter().map(|r| r.0);
+    let sc = inserts
+        .iter()
+        .enumerate()
+        .filter(move |(j, ins)| *j != i && ins.slots.iter().any(|s| s.sidechain == Some(i)))
+        .map(|(j, _)| j);
+    routes.chain(sc)
+}
+
+/// Ordine topologico (Kahn) degli insert seguendo mandate e sidechain; il master è sempre ultimo.
+/// Eventuali cicli (possibili in progetti importati) vengono spezzati rimuovendo le mandate
+/// residue; un sidechain la cui sorgente non precede l'insert viene disattivato.
 fn topo_order(inserts: &mut [InsertRt]) -> Vec<usize> {
     let n = inserts.len();
+    // Un sidechain su se stesso non ha senso: rilevamento interno.
+    for (i, ins) in inserts.iter_mut().enumerate() {
+        for s in ins.slots.iter_mut() {
+            if s.sidechain == Some(i) {
+                s.sidechain = None;
+            }
+        }
+    }
+    let succ: Vec<Vec<usize>> = (0..n).map(|i| successors(inserts, i).collect()).collect();
     let mut indeg = vec![0usize; n];
-    for ins in inserts.iter() {
-        for &(t, _) in &ins.routes {
+    for list in &succ {
+        for &t in list {
             indeg[t] += 1;
         }
     }
@@ -263,7 +298,7 @@ fn topo_order(inserts: &mut [InsertRt]) -> Vec<usize> {
         }
         done[i] = true;
         order.push(i);
-        for &(t, _) in &inserts[i].routes {
+        for &t in &succ[i] {
             indeg[t] -= 1;
             if indeg[t] == 0 && t != MASTER as usize {
                 queue.push(t);
@@ -292,6 +327,22 @@ fn topo_order(inserts: &mut [InsertRt]) -> Vec<usize> {
         }
     }
     order.push(MASTER as usize);
+    let pos_of = |i: usize| if i == MASTER as usize { usize::MAX } else { pos[i] };
+    let mut sources = vec![false; n];
+    for (i, ins) in inserts.iter_mut().enumerate() {
+        for s in ins.slots.iter_mut() {
+            if let Some(src) = s.sidechain {
+                if pos_of(src) < pos_of(i) {
+                    sources[src] = true;
+                } else {
+                    s.sidechain = None;
+                }
+            }
+        }
+    }
+    for (ins, src) in inserts.iter_mut().zip(sources) {
+        ins.sidechain_source = src;
+    }
     order
 }
 

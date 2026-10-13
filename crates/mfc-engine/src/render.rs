@@ -69,9 +69,45 @@ impl Audio {
         let n = (self.left.len() + self.right.len()).max(1);
         (self.left.iter().chain(&self.right).map(|x| x * x).sum::<f32>() / n as f32).sqrt()
     }
+    /// RMS solo sulle parti sopra `threshold_db` dBFS (finestre di 50 ms).
+    pub fn rms_active(&self, threshold_db: f32) -> f32 {
+        mfc_dsp::loudness::active_rms(&self.left, &self.right, self.sample_rate as f32, threshold_db)
+    }
+    /// Loudness integrata EBU R128 in LUFS; `None` se silenzioso.
+    pub fn lufs_integrated(&self) -> Option<f64> {
+        mfc_dsp::loudness::integrated_lufs(&self.left, &self.right, self.sample_rate as f32)
+    }
+    /// True peak lineare (sovracampionamento 4×).
+    pub fn true_peak(&self) -> f32 {
+        mfc_dsp::loudness::true_peak(&self.left, &self.right)
+    }
+    /// Analisi completa per il mix: picco, true peak, RMS, RMS attivo (-60 dBFS), LUFS.
+    pub fn analyze(&self) -> Analysis {
+        Analysis {
+            peak: self.peak(),
+            true_peak: self.true_peak(),
+            rms: self.rms(),
+            rms_active: self.rms_active(ACTIVE_THRESHOLD_DB),
+            lufs_integrated: self.lufs_integrated(),
+        }
+    }
     fn scale(&mut self, g: f32) {
         self.left.iter_mut().chain(self.right.iter_mut()).for_each(|x| *x *= g);
     }
+}
+
+/// Soglia (dBFS) sotto cui una finestra è considerata silenzio per l'RMS attivo.
+pub const ACTIVE_THRESHOLD_DB: f32 = -60.0;
+
+/// Misure di livello di un buffer (valori lineari, LUFS in dB).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Analysis {
+    pub peak: f32,
+    pub true_peak: f32,
+    pub rms: f32,
+    /// RMS sulle sole parti sopra [`ACTIVE_THRESHOLD_DB`].
+    pub rms_active: f32,
+    pub lufs_integrated: Option<f64>,
 }
 
 /// Stem di un insert.
@@ -87,6 +123,9 @@ pub struct Stem {
 pub struct Rendered {
     pub mix: Audio,
     pub stems: Vec<Stem>,
+    /// Massima riduzione di guadagno (dB, ≤ 0) degli effetti dinamici sul master
+    /// (limiter, compressore): indica se il master sta schiacciando il segnale.
+    pub master_gain_reduction_db: f32,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -128,8 +167,11 @@ pub fn render(project: &Project, opts: &RenderOptions) -> Result<Rendered, Rende
     // In modalità pattern il motore va in loop: si conta il tempo trascorso in tick.
     let mut elapsed_ticks = 0.0;
     let mut last_pos = engine.position();
+    let master = mfc_core::MASTER as usize;
+    let mut master_gr = 0f32;
     while elapsed_ticks < target && mix.frames() < max_frames {
         engine.process(&mut l, &mut r);
+        master_gr = master_gr.min(engine.take_gain_reduction_db(master));
         mix.left.extend_from_slice(&l);
         mix.right.extend_from_slice(&r);
         let pos = engine.position();
@@ -159,6 +201,7 @@ pub fn render(project: &Project, opts: &RenderOptions) -> Result<Rendered, Rende
     while written < tail {
         let n = block.min(tail - written);
         engine.process(&mut l[..n], &mut r[..n]);
+        master_gr = master_gr.min(engine.take_gain_reduction_db(master));
         mix.left.extend_from_slice(&l[..n]);
         mix.right.extend_from_slice(&r[..n]);
         written += n;
@@ -205,7 +248,11 @@ pub fn render(project: &Project, opts: &RenderOptions) -> Result<Rendered, Rende
             }
         }
     }
-    Ok(Rendered { mix, stems })
+    Ok(Rendered {
+        mix,
+        stems,
+        master_gain_reduction_db: master_gr,
+    })
 }
 
 /// Scrive audio stereo su WAV.

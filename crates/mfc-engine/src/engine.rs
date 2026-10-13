@@ -197,6 +197,9 @@ pub struct Engine {
     ch_r: [f32; CHUNK],
     dry_l: [f32; CHUNK],
     dry_r: [f32; CHUNK],
+    /// Chiave sidechain per insert: uscita degli effetti, prima del fader.
+    key_l: Vec<[f32; CHUNK]>,
+    key_r: Vec<[f32; CHUNK]>,
     /// Cattura post-fader per insert (solo render offline degli stem).
     pub(crate) capture: Option<Vec<(Vec<f32>, Vec<f32>)>>,
 }
@@ -229,6 +232,8 @@ impl Engine {
             ch_r: [0.0; CHUNK],
             dry_l: [0.0; CHUNK],
             dry_r: [0.0; CHUNK],
+            key_l: vec![[0.0; CHUNK]; n],
+            key_r: vec![[0.0; CHUNK]; n],
             capture: None,
         };
         shared.tempo_bits.store(engine.tempo.to_bits(), Ordering::Relaxed);
@@ -334,6 +339,8 @@ impl Engine {
             // Solo se cambia il numero di insert (raro: progetti importati). Alloca.
             self.ins_l.resize(self.prep.inserts.len(), [0.0; CHUNK]);
             self.ins_r.resize(self.prep.inserts.len(), [0.0; CHUNK]);
+            self.key_l.resize(self.prep.inserts.len(), [0.0; CHUNK]);
+            self.key_r.resize(self.prep.inserts.len(), [0.0; CHUNK]);
         }
         self.tempo = self.prep.tempo;
         self.master_gain = self.prep.master_gain;
@@ -612,19 +619,29 @@ impl Engine {
                 if !slot.enabled {
                     continue;
                 }
+                // La chiave della sorgente è già pronta: l'ordine topologico la elabora prima.
+                let key = slot.sidechain.map(|s| (&self.key_l[s][..len], &self.key_r[s][..len]));
+                let mut run = |l: &mut [f32], r: &mut [f32]| match key {
+                    Some((kl, kr)) => fx.process_sidechain(l, r, kl, kr),
+                    None => fx.process(l, r),
+                };
                 if slot.mix >= 1.0 {
-                    fx.process(bl, br);
+                    run(bl, br);
                 } else {
                     let (dl, dr) = (&mut self.dry_l[..len], &mut self.dry_r[..len]);
                     dl.copy_from_slice(bl);
                     dr.copy_from_slice(br);
-                    fx.process(bl, br);
+                    run(bl, br);
                     let w = slot.mix.max(0.0);
                     for i in 0..len {
                         bl[i] = dl[i] + (bl[i] - dl[i]) * w;
                         br[i] = dr[i] + (br[i] - dr[i]) * w;
                     }
                 }
+            }
+            if ins.sidechain_source {
+                self.key_l[idx][..len].copy_from_slice(bl);
+                self.key_r[idx][..len].copy_from_slice(br);
             }
             let (pl, pr) = balance(ins.pan);
             let silent = ins.muted || !ins.audible;
@@ -682,6 +699,16 @@ impl Engine {
         }
         store_peak(&self.shared.out_meter[0], pk_l);
         store_peak(&self.shared.out_meter[1], pk_r);
+    }
+
+    /// Massima riduzione di guadagno (dB, ≤ 0) degli effetti dell'insert dall'ultima lettura.
+    pub fn take_gain_reduction_db(&mut self, insert: usize) -> f32 {
+        self.prep.inserts.get_mut(insert).map_or(0.0, |ins| {
+            ins.slots
+                .iter_mut()
+                .filter_map(|s| s.fx.as_mut())
+                .fold(0.0, |m, fx| m.min(fx.take_gain_reduction_db()))
+        })
     }
 
     /// Note attualmente suonate dal sequencer.

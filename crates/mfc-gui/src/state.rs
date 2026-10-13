@@ -3,7 +3,7 @@
 
 use std::path::{Path, PathBuf};
 
-use mfc_core::{ChannelId, Command, History, Outcome, PatternId, Project};
+use mfc_core::{ChannelId, Command, History, Outcome, PatternId, Project, UiState, UiView};
 use mfc_engine::backend::null::NullBackend;
 use mfc_engine::{Engine, EngineHandle, PlayMode};
 
@@ -71,8 +71,47 @@ impl Studio {
             audible,
             _backend: backend,
         };
-        s.apply_mode();
+        s.apply_initial_view();
         s
+    }
+
+    /// Vista e modalità all'apertura: quelle salvate dalla GUI; altrimenti Song sulla
+    /// Playlist se il brano ha clip, Pattern sul Channel Rack se no. Senza stato salvato
+    /// (progetti da CLI/MCP, dove il pattern selezionato è l'ultimo creato) si parte dal primo pattern.
+    fn apply_initial_view(&mut self) {
+        match self.project.ui {
+            Some(ui) => {
+                self.view = match ui.view {
+                    UiView::ChannelRack => View::ChannelRack,
+                    UiView::PianoRoll => View::PianoRoll,
+                    UiView::Playlist => View::Playlist,
+                    UiView::Mixer => View::Mixer,
+                };
+                self.song_mode = ui.song_mode;
+            }
+            None => {
+                let song = !self.project.playlist.clips.is_empty();
+                self.song_mode = song;
+                self.view = if song { View::Playlist } else { View::ChannelRack };
+                if let Some(first) = self.project.patterns.first() {
+                    self.project.current_pattern = Some(first.id);
+                }
+            }
+        }
+        self.apply_mode();
+    }
+
+    /// Stato della UI da salvare nel progetto.
+    fn ui_state(&self) -> UiState {
+        UiState {
+            view: match self.view {
+                View::ChannelRack => UiView::ChannelRack,
+                View::PianoRoll => UiView::PianoRoll,
+                View::Playlist => UiView::Playlist,
+                View::Mixer => UiView::Mixer,
+            },
+            song_mode: self.song_mode,
+        }
     }
 
     /// Pattern selezionato (o il primo).
@@ -160,6 +199,7 @@ impl Studio {
         self.selected_channel = self.project.channels.first().map(|c| c.id);
         self.plugin_editor = None;
         self.after_change();
+        self.apply_initial_view();
     }
 
     /// Apre .mfc, .flp o .mid.
@@ -209,6 +249,8 @@ impl Studio {
             self.status = format!("Esportato FLP {}", path.display());
             return Ok(());
         }
+        // Lo stato della UI non è una modifica del brano: niente undo.
+        self.project.ui = Some(self.ui_state());
         let txt = self.project.to_json().map_err(|e| e.to_string())?;
         std::fs::write(path, txt).map_err(|e| e.to_string())?;
         self.path = Some(path.to_path_buf());

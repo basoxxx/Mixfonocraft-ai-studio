@@ -157,7 +157,8 @@ fn full_production_workflow() {
             "points": [{"position": 0, "value": 1.0}, {"position": 1536, "value": 0.2}], "track": 5, "position": 0
         }),
     );
-    assert!(auto["outcome"].is_object());
+    assert!(auto["id"].is_u64(), "{auto}");
+    assert!(auto["clip"].is_u64(), "{auto}");
 
     let info = c.call("project_info", json!({}));
     assert_eq!(info["tempo"], 128.0);
@@ -170,6 +171,16 @@ fn full_production_workflow() {
     let secs = r["seconds"].as_f64().unwrap();
     assert!((secs - (4.0 * 4.0 * 60.0 / 128.0 + 0.5)).abs() < 0.01, "{secs}");
     assert!(r["peak_db"].as_f64().unwrap() > -40.0);
+    assert!(r["true_peak_db"].as_f64().unwrap() >= r["peak_db"].as_f64().unwrap() - 0.05);
+    assert!(r["lufs_integrated"].as_f64().is_some(), "{r}");
+    assert!(r["rms_active_db"].as_f64().unwrap() >= r["rms_db"].as_f64().unwrap());
+    assert!(r["gain_reduction_max_db"].as_f64().unwrap() <= 0.0);
+    for st in r["stems"].as_array().unwrap() {
+        assert!(
+            st["rms_active_db"].as_f64().unwrap() >= st["rms_db"].as_f64().unwrap(),
+            "{st}"
+        );
+    }
     assert_eq!(r["stems"].as_array().unwrap().len(), 4, "{r}");
     let path = r["path"].as_str().unwrap();
     assert!(hound::WavReader::open(path).is_ok());
@@ -271,4 +282,135 @@ fn stdio_loop() {
     assert_eq!(lines[0]["result"]["protocolVersion"], "2024-11-05");
     assert_eq!(lines[1]["error"]["code"], -32700);
     assert_eq!(lines[2]["result"]["isError"], false);
+}
+
+#[test]
+fn creating_tools_return_top_level_id() {
+    let mut c = Client::new("ids");
+    let ch = c.call("channel_add", json!({"name": "K", "plugin": "mfc.kick"}));
+    let ch_id = ch["id"].as_u64().unwrap();
+    let clone = c.call("channel_clone", json!({"channel": ch_id}));
+    assert!(clone["id"].as_u64().unwrap() > ch_id);
+    let pat = c.call("pattern_add", json!({"name": "B"}));
+    let pat_id = pat["id"].as_u64().unwrap();
+    assert_eq!(pat["pattern"], pat_id);
+    assert_eq!(pat["name"], "B");
+    let pc = c.call("pattern_clone", json!({"pattern": pat_id}));
+    assert!(pc["id"].as_u64().unwrap() > pat_id);
+    let placed = c.call("playlist_place", json!({"track": 0, "pattern": pat_id, "repeat": 2}));
+    assert_eq!(placed["id"], placed["clips"][0]);
+    let fx = c.call("mixer_add_effect", json!({"insert": 1, "plugin": "mfc.reverb"}));
+    assert_eq!(fx["id"], 0);
+    assert_eq!(fx["slot"], 0);
+    assert_eq!(fx["insert"], 1);
+    let auto = c.call(
+        "automation_add",
+        json!({"name": "A", "target": {"type": "tempo"}, "min": 100.0, "max": 140.0,
+               "points": [{"position": 0, "value": 0.0}]}),
+    );
+    assert!(auto["id"].is_u64());
+    assert!(auto["clip"].is_null(), "non piazzata: {auto}");
+    let raw = c.call(
+        "apply_commands",
+        json!({"commands": [{"op": "add_pattern", "name": "C"}]}),
+    );
+    assert_eq!(raw["ids"].as_array().unwrap().len(), 1);
+}
+
+#[test]
+fn volumes_in_db() {
+    let mut c = Client::new("db");
+    let ch = c.call("channel_add", json!({"name": "K", "plugin": "mfc.kick"}))["id"]
+        .as_u64()
+        .unwrap();
+    let r = c.call("channel_set", json!({"channel": ch, "volume_db": -6.0}));
+    assert!((r["volume_db"].as_f64().unwrap() + 6.0).abs() < 0.05, "{r}");
+    // Curva lineare in ampiezza: posizione = 0.78 · 10^(dB/20).
+    assert!((r["volume"].as_f64().unwrap() - 0.78 * 10f64.powf(-6.0 / 20.0)).abs() < 1e-4);
+    let r = c.call("mixer_set", json!({"insert": 1, "volume_db": -3.0}));
+    assert!((r["volume_db"].as_f64().unwrap() + 3.0).abs() < 0.05, "{r}");
+    let r = c.call("mixer_set", json!({"insert": 1, "volume_db": -200.0}));
+    assert_eq!(r["volume"], 0.0);
+    let r = c.call("project_set", json!({"master_volume_db": 0.0}));
+    assert_eq!(r["master_volume_db"], 0.0);
+    let msg = c.call_err("mixer_set", json!({"insert": 1, "volume_db": 12.0}));
+    assert!(msg.contains("massimo"), "{msg}");
+    let msg = c.call_err("channel_set", json!({"channel": ch, "volume": 0.5, "volume_db": -3.0}));
+    assert!(msg.contains("non entrambi"), "{msg}");
+    let list = c.call("mixer_list", json!({}));
+    assert!(list["inserts"][0]["volume_db"].is_number());
+}
+
+#[test]
+fn sidechain_validation_and_ducking() {
+    let mut c = Client::new("sidechain");
+    let kick = c.call(
+        "channel_add",
+        json!({"name": "Kick", "plugin": "mfc.kick", "insert": 1}),
+    )["id"]
+        .as_u64()
+        .unwrap();
+    let bass = c.call(
+        "channel_add",
+        json!({"name": "Bass", "plugin": "mfc.3xosc", "insert": 2, "params": {"release": 0.05}}),
+    )["id"]
+        .as_u64()
+        .unwrap();
+    c.call("steps_set", json!({"channel": kick, "row": "x...x...x...x..."}));
+    let notes: Vec<Value> = (0..16).map(|i| json!({"step": i, "length": 24, "key": "C3"})).collect();
+    c.call("notes_add", json!({"channel": bass, "notes": notes}));
+    c.call("playlist_place", json!({"track": 0, "pattern": 1, "repeat": 2}));
+    // Errori: master come chiave, se stesso, ciclo.
+    let msg = c.call_err(
+        "mixer_add_effect",
+        json!({"insert": 2, "plugin": "mfc.compressor", "params": {"sidechain_insert": 0}}),
+    );
+    assert!(msg.contains("master"), "{msg}");
+    let msg = c.call_err(
+        "mixer_add_effect",
+        json!({"insert": 2, "plugin": "mfc.compressor", "params": {"sidechain_insert": 2}}),
+    );
+    assert!(msg.contains("se stesso"), "{msg}");
+    c.call("mixer_route", json!({"from": 2, "to": 3}));
+    let msg = c.call_err(
+        "mixer_add_effect",
+        json!({"insert": 2, "plugin": "mfc.compressor", "params": {"sidechain_insert": 3}}),
+    );
+    assert!(msg.contains("ciclo"), "{msg}");
+
+    let before = c.call(
+        "render_wav",
+        json!({"path": "dry.wav", "stems": true, "tail_seconds": 0.0, "sample_rate": 22050}),
+    );
+    let fx = c.call(
+        "mixer_add_effect",
+        json!({"insert": 2, "plugin": "mfc.compressor",
+               "params": {"sidechain_insert": 1, "threshold": -40, "ratio": 20, "attack": 0.5, "release": 120}}),
+    );
+    assert_eq!(fx["params"]["sidechain_insert"], 1.0);
+    let after = c.call(
+        "render_wav",
+        json!({"path": "duck.wav", "stems": true, "tail_seconds": 0.0, "sample_rate": 22050}),
+    );
+    let bass_rms = |r: &Value| {
+        r["stems"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|s| s["insert"] == 2)
+            .unwrap()["rms_db"]
+            .as_f64()
+            .unwrap()
+    };
+    assert!(
+        bass_rms(&after) < bass_rms(&before) - 3.0,
+        "il basso deve abbassarsi con la cassa: {} → {}",
+        bass_rms(&before),
+        bass_rms(&after)
+    );
+    // Torna al rilevamento interno.
+    c.call(
+        "mixer_set_effect",
+        json!({"insert": 2, "slot": 0, "params": {"sidechain_insert": -1}}),
+    );
 }
