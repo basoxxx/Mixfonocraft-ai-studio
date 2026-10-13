@@ -407,11 +407,11 @@ impl StudioApp {
                     }
                 });
             });
-            ui.menu_button(RichText::new("Aiuto").color(pal::TEXT_DIM()), |ui| {
-                views::update_ui::help_menu(ui, &mut self.updater)
-            });
             ui.menu_button(RichText::new("Vista").color(pal::TEXT_DIM()), |ui| {
                 crate::ui_settings::view_menu(ui, &mut self.studio);
+            });
+            ui.menu_button(RichText::new("Aiuto").color(pal::TEXT_DIM()), |ui| {
+                views::update_ui::help_menu(ui, &mut self.updater)
             });
             toolbar_sep(ui, h);
 

@@ -1583,7 +1583,7 @@ dependencies = [
 
 [[package]]
 name = "mfc-app"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "mfc-core",
  "mfc-flp",
@@ -1594,7 +1594,7 @@ dependencies = [
 
 [[package]]
 name = "mfc-cli"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -1611,7 +1611,7 @@ dependencies = [
 
 [[package]]
 name = "mfc-core"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -1620,11 +1620,11 @@ dependencies = [
 
 [[package]]
 name = "mfc-dsp"
-version = "0.4.0"
+version = "0.5.0"
 
 [[package]]
 name = "mfc-engine"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "cpal",
  "crossbeam-channel",
@@ -1636,7 +1636,7 @@ dependencies = [
 
 [[package]]
 name = "mfc-flp"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "mfc-core",
  "serde",
@@ -1645,7 +1645,7 @@ dependencies = [
 
 [[package]]
 name = "mfc-gui"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "crossbeam-channel",
  "eframe",
@@ -1671,7 +1671,7 @@ dependencies = [
 
 [[package]]
 name = "mfc-host"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "clack-extensions",
  "clack-host",
@@ -1694,7 +1694,7 @@ dependencies = [
 
 [[package]]
 name = "mfc-mcp"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "hound",
  "mfc-core",
@@ -1709,7 +1709,7 @@ dependencies = [
 
 [[package]]
 name = "mfc-midi"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "mfc-core",
  "midly",
@@ -1718,7 +1718,7 @@ dependencies = [
 
 [[package]]
 name = "mfc-plugins"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "hound",
  "mfc-core",
@@ -1728,7 +1728,7 @@ dependencies = [
 
 [[package]]
 name = "mfc-test-clap"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "clack-extensions",
  "clack-plugin",
@@ -1736,7 +1736,7 @@ dependencies = [
 
 [[package]]
 name = "mfc-test-vst3"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "vst3",
 ]

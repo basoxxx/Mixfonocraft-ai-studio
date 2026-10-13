@@ -50,6 +50,20 @@ affiliato né approvato da Image-Line; FL Studio è un marchio dei rispettivi ti
   registrazione delle note nel pattern durante la riproduzione.
 - **Impostazioni audio**: dispositivo di uscita, frequenza di campionamento, buffer e carico CPU.
 - **Dialoghi file nativi** e **drag & drop** di progetti, MIDI, campioni WAV e plugin.
+- **Registrazione**: note da tastiera e MIDI nel pattern, audio da microfono o strumento in
+  Playlist (Audio Clip), e **automazioni** dai movimenti delle manopole durante la riproduzione,
+  comprese quelle fatte nell'interfaccia originale dei plugin VST3/CLAP.
+- **Tempo sync**: LFO di Nova e degli effetti, Delay, Chorus, Flanger, Phaser e Filter seguono il
+  tempo del progetto (da 4 battute a 1/32, puntati e terzine).
+- **Browser dei campioni** con anteprima e trascinamento su Channel Rack e Playlist.
+- **Interfaccia**: tema scuro, chiaro o di sistema, pannelli ridimensionabili (F8 nasconde il
+  browser), manopole logaritmiche per frequenze e tempi, anteprime di inviluppi, forme d'onda, LFO e
+  curva del filtro nell'editor dei synth.
+- **Plugin in un processo separato** (opzione nelle impostazioni audio): se un plugin va in crash
+  l'app resta aperta e il plugin si può riavviare con il suo stato.
+- **Autosalvataggio** ogni 2 minuti con recupero dopo un'uscita anomala.
+- **Aggiornamenti automatici**: l'app controlla le nuove versioni su GitHub (una volta al giorno,
+  disattivabile dal menu Aiuto), scarica e installa l'aggiornamento e si riavvia.
 - **Server MCP** con 47 tool per creare progetti, pattern, mix e render da un agente AI.
 
 ## Struttura del workspace
@@ -287,8 +301,10 @@ memoria, ne verificano struttura e render (durata, livello, dissolvenza), fanno 
   un'esportazione best-effort: l'ordine del class id VST3, il formato dello stato atteso da FL e la
   struttura usata da FL per i CLAP non sono documentati, quindi in FL Studio il plugin potrebbe
   risultare mancante o aprirsi senza il suo preset.
-- Le modifiche ai parametri fatte nell'interfaccia originale del plugin vengono salvate nello stato
-  del plugin, ma non generano automazioni.
+- Le app non sono firmate: al primo avvio macOS può chiedere di aprirle da Impostazioni di
+  Sistema ▸ Privacy e sicurezza, e Windows SmartScreen può mostrare un avviso.
+- I plugin in un processo separato aggiungono un blocco di latenza e non registrano automazioni
+  dalla loro interfaccia originale.
 - L'esportazione `.flp` non è stata verificata con FL Studio reale. I test coprono il round-trip
   interno e la struttura del file.
 - Nel `.flp` vengono esportate le clip di automazione di volume, pan e pitch dei canali, volume e
