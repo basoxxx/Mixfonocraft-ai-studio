@@ -844,6 +844,8 @@ mod tests {
         assert!(windows_installer_args(&dir, false).iter().any(|x| x == "/ALLUSERS"));
     }
 
+    // Percorsi in stile Unix: lo script serve solo su macOS (su Windows `Path::join` usa `\\`).
+    #[cfg(unix)]
     #[test]
     fn macos_bundle_and_script() {
         assert_eq!(
