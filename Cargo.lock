@@ -1640,6 +1640,7 @@ dependencies = [
  "clack-host",
  "core-foundation 0.10.1",
  "crossbeam-channel",
+ "libc",
  "libloading 0.9.0",
  "mfc-core",
  "mfc-plugins",

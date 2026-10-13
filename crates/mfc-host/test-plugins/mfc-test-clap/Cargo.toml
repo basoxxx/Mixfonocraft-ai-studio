@@ -10,3 +10,5 @@ description = "Plugin clap di prova per i test d'integrazione di mfc-host"
 crate-type = ["cdylib"]
 
 [dependencies]
+clack-plugin = "0.2"
+clack-extensions = { version = "0.2", features = ["clack-plugin", "params", "state", "audio-ports", "note-ports"] }

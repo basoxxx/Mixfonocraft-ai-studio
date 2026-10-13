@@ -18,6 +18,11 @@ libloading = "0.9"
 vst3 = "0.3"
 # Backend CLAP
 clack-host = "0.2"
+clack-extensions = { version = "0.2", features = ["clack-host", "params", "state", "gui", "audio-ports", "note-ports", "log", "latency"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 core-foundation = "0.10"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+# Backend VST3: poll dei file descriptor registrati con IRunLoop
+libc = "0.2"
