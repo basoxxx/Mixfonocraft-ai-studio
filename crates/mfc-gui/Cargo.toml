@@ -7,7 +7,9 @@ description = "Interfaccia grafica egui di Mixfonocraft (Channel Rack, Piano Rol
 
 [features]
 default = []
-realtime = ["mfc-engine/realtime"]
+realtime = ["mfc-engine/realtime", "midi"]
+# Ingresso MIDI hardware (richiede ALSA su Linux).
+midi = ["dep:midir"]
 # Screenshot via rasterizzatore software (nessuna GPU richiesta).
 snapshot = ["dep:png"]
 
@@ -17,12 +19,23 @@ mfc-plugins.workspace = true
 mfc-engine.workspace = true
 mfc-flp.workspace = true
 mfc-midi.workspace = true
+mfc-host.workspace = true
+crossbeam-channel.workspace = true
 eframe = { workspace = true, default-features = false, features = ["default_fonts", "glow", "x11", "wayland"] }
 egui.workspace = true
 serde_json.workspace = true
 # Dialoghi nativi. Su Linux niente GTK: backend XDG desktop portal (nessun header di sistema).
 rfd = { version = "0.17", default-features = false, features = ["xdg-portal", "pollster", "common-controls-v6"] }
 png = { version = "0.18", optional = true }
+midir = { version = "0.11", optional = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-foundation = "0.3"
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSWindow", "NSView", "NSResponder", "NSGraphics"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_System_LibraryLoader", "Win32_Graphics_Gdi"] }
 
 [[example]]
 name = "screenshot"

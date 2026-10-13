@@ -222,6 +222,7 @@ impl StudioApp {
         let save = KeyboardShortcut::new(Modifiers::COMMAND, Key::S);
         let save_as = KeyboardShortcut::new(Modifiers::COMMAND | Modifiers::SHIFT, Key::S);
         let open = KeyboardShortcut::new(Modifiers::COMMAND, Key::O);
+        let record = KeyboardShortcut::new(Modifiers::COMMAND, Key::R);
         // Ctrl+Shift+S va controllato prima di Ctrl+S: egui accetta Ctrl+S anche con Shift premuto.
         let (mut do_open, mut do_save, mut do_save_as) = (false, false, false);
         ctx.input_mut(|i| {
@@ -234,7 +235,15 @@ impl StudioApp {
             do_save_as = i.consume_shortcut(&save_as);
             do_save = !do_save_as && i.consume_shortcut(&save);
             do_open = i.consume_shortcut(&open);
+            if i.consume_shortcut(&record) {
+                self.studio.toggle_record();
+            }
         });
+        // Tastiera del computer come pianoforte (solo se nessun campo di testo ha il focus).
+        if !typing && self.studio.live.handle_keyboard(ctx) {
+            ctx.request_repaint();
+        }
+        self.studio.pump_live();
         // Le azioni su file sono fuori dal lock dell'input: i dialoghi nativi sono bloccanti.
         if do_open {
             self.request_file(FileAction::Open);
@@ -367,6 +376,37 @@ impl StudioApp {
                     self.audio_settings.request_open(&self.studio);
                     ui.close();
                 }
+                ui.separator();
+                ui.checkbox(
+                    &mut self.studio.live.typing_keyboard,
+                    "Tastiera del computer come piano",
+                );
+                ui.label(
+                    RichText::new(format!("Ottava {} (Shift+↑/↓) · Z–M e Q–P", self.studio.live.octave))
+                        .small()
+                        .color(pal::TEXT_DIM),
+                );
+                ui.separator();
+                ui.menu_button("Ingresso MIDI", |ui| {
+                    let current = self.studio.live.midi_port.clone();
+                    if ui.radio(current.is_none(), "Nessuno").clicked() {
+                        let _ = self.studio.live.connect_midi(None);
+                        ui.close();
+                    }
+                    let ports = crate::input::LiveInput::midi_ports();
+                    if ports.is_empty() {
+                        ui.label(RichText::new("Nessun dispositivo MIDI").color(pal::TEXT_DIM));
+                    }
+                    for port in ports {
+                        if ui.radio(current.as_deref() == Some(port.as_str()), &port).clicked() {
+                            self.studio.status = match self.studio.live.connect_midi(Some(&port)) {
+                                Ok(()) => format!("MIDI collegato: {port}"),
+                                Err(e) => format!("MIDI: {e}"),
+                            };
+                            ui.close();
+                        }
+                    }
+                });
             });
             toolbar_sep(ui, h);
 
@@ -382,16 +422,19 @@ impl StudioApp {
             if icon_button(ui, Icon::Stop, false, pal::TEXT, 32.0, "Stop").clicked() {
                 self.studio.stop();
             }
-            ui.add_enabled_ui(false, |ui| {
-                icon_button(
-                    ui,
-                    Icon::Record,
-                    false,
-                    pal::RED,
-                    32.0,
-                    "Registrazione (non ancora disponibile)",
-                );
-            });
+            let rec = self.studio.recording;
+            if icon_button(
+                ui,
+                Icon::Record,
+                rec,
+                pal::RED,
+                32.0,
+                "Registra nel pattern le note da tastiera/MIDI (Ctrl+R)",
+            )
+            .clicked()
+            {
+                self.studio.toggle_record();
+            }
             toolbar_sep(ui, h);
 
             // Tempo: trascina in verticale, rilascio = commit.

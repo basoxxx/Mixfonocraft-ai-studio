@@ -7,6 +7,8 @@ use mfc_core::{ChannelId, Command, History, Outcome, PatternId, Project};
 use mfc_engine::backend::null::NullBackend;
 use mfc_engine::{Engine, EngineHandle, PlayMode};
 
+use crate::input::{LiveEvent, LiveInput};
+
 /// Vista principale nell'area centrale.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum View {
@@ -67,6 +69,10 @@ pub struct Studio {
     pub audible: bool,
     /// Configurazione audio scelta dall'utente (applicata da [`Studio::restart_audio`]).
     pub audio_config: AudioConfig,
+    /// Ingresso live: tastiera del computer e MIDI.
+    pub live: LiveInput,
+    /// Registrazione delle note live nel pattern corrente (durante la riproduzione).
+    pub recording: bool,
     /// Backend attivo; `None` solo durante il riavvio, per rilasciare il dispositivo.
     _backend: Option<Backend>,
 }
@@ -95,6 +101,8 @@ impl Studio {
                     None => "Audio non disponibile: transport silenzioso".into(),
                 }
             },
+            live: LiveInput::new(handle.clone()),
+            recording: false,
             engine: handle,
             audible,
             audio_config,
@@ -113,6 +121,7 @@ impl Studio {
         self._backend = None;
         let (handle, backend, err) = start_engine(&self.project, &cfg);
         self.audible = backend.is_device();
+        self.live.set_engine(handle.clone());
         self.engine = handle;
         self._backend = Some(backend);
         self.apply_mode();
@@ -201,7 +210,75 @@ impl Studio {
     }
 
     pub fn stop(&mut self) {
+        self.finish_recording();
         self.engine.stop();
+    }
+
+    /// Attiva/disattiva la registrazione; se il transport è fermo parte la riproduzione.
+    pub fn toggle_record(&mut self) {
+        if self.recording {
+            self.finish_recording();
+            self.recording = false;
+        } else {
+            self.recording = true;
+            if !self.engine.shared.is_playing() {
+                self.engine.play();
+            }
+        }
+    }
+
+    /// Pattern in registrazione, sua lunghezza e griglia di quantizzazione (1/16).
+    fn record_target(&self) -> Option<(PatternId, mfc_core::Tick, mfc_core::Tick)> {
+        let pat = self.current_pattern()?;
+        let len = self.project.pattern(pat)?.effective_length(&self.project.time);
+        Some((pat, len.max(1), self.project.time.ticks_per_step()))
+    }
+
+    /// Chiude le note ancora tenute e le scrive nel pattern.
+    fn finish_recording(&mut self) {
+        let Some((pat, len, snap)) = self.record_target() else {
+            return;
+        };
+        let pos = self.engine.shared.position();
+        let notes = self.live.recorder.flush(pos, len, snap);
+        self.commit_recorded(pat, notes);
+    }
+
+    fn commit_recorded(&mut self, pattern: PatternId, notes: Vec<mfc_core::Note>) {
+        let Some(channel) = self.selected_channel else { return };
+        if !notes.is_empty() {
+            let n = notes.len();
+            self.exec(Command::AddNotes {
+                pattern,
+                channel,
+                notes,
+            });
+            self.status = format!("Registrate {n} note");
+        }
+    }
+
+    /// Da chiamare a ogni frame: instrada le note live al canale selezionato e, se si
+    /// sta registrando, le aggiunge al pattern corrente.
+    pub fn pump_live(&mut self) {
+        self.live.set_target(self.selected_channel);
+        let events = self.live.drain();
+        let playing = self.engine.shared.is_playing();
+        if !self.recording || !playing || events.is_empty() {
+            return;
+        }
+        let Some((pat, len, snap)) = self.record_target() else {
+            return;
+        };
+        // In modalità song la posizione è assoluta: si registra comunque nel pattern ciclico.
+        let pos = self.engine.shared.position() % len as f64;
+        let mut notes = Vec::new();
+        for ev in events {
+            match ev {
+                LiveEvent::On { key, velocity } => self.live.recorder.on(key, velocity, pos),
+                LiveEvent::Off { key } => notes.extend(self.live.recorder.off(key, pos, len, snap)),
+            }
+        }
+        self.commit_recorded(pat, notes);
     }
 
     /// Sostituisce il progetto (nuovo/apertura/import).
