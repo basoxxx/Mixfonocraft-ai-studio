@@ -29,7 +29,7 @@ affiliato né approvato da Image-Line; FL Studio è un marchio dei rispettivi ti
 - **Step sequencer** a 1/16 e **piano roll** con quantizzazione, trasposizione e velocity.
 - **Playlist** su 500 tracce con clip di pattern, audio e automazione, ripetizioni e mute.
 - **Mixer** con master e 125 insert, 10 slot effetto per insert, mandate, mute, solo, fase e
-  scambio L/R, con 23 plugin nativi (9 generatori, 14 effetti).
+  scambio L/R, con 26 plugin nativi (12 generatori, 14 effetti).
 - **Automazioni** su volume, pan, pitch, tempo, parametri di canale ed effetti, con curve a tensione.
 - **Transport** in modalità Song o Pattern, con swing globale.
 - **Render** offline in WAV (16 o 24 bit intero, 32 bit float), con normalizzazione e stem per insert.
@@ -39,6 +39,10 @@ affiliato né approvato da Image-Line; FL Studio è un marchio dei rispettivi ti
 - **Nova**, synth sottrattivo polifonico: due oscillatori con unison fino a 8 voci, sub e rumore,
   filtro 12/24 dB con inviluppo, due LFO, modalità mono/legato con glide e 16 preset di fabbrica
   (lead, bassi, pad, pluck, keys, FX).
+- **Fusion**, synth FM a 4 operatori con 8 algoritmi, ADSR e velocity per operatore, feedback,
+  filtro e vibrato; **Prism**, synth wavetable con 8 tabelle morphabili band-limited, unison,
+  posizione modulata da inviluppo e LFO; **Drumkit**, batteria sintetica su mappa General MIDI con
+  kit 808, 909, Acoustic, Lo-Fi, Electro e Trap e choke degli hi-hat. Tutti con preset di fabbrica.
 - **Plugin VST3 e CLAP**: scansione delle cartelle standard, strumenti ed effetti caricati
   nell'app, interfaccia originale del plugin in una finestra nativa (macOS e Windows), editor
   generico dei parametri, stato salvato nel progetto.
@@ -208,6 +212,13 @@ cargo run -p mfc-plugins --release --example nova_presets -- nova.wav
 ```
 
 Dal server MCP: `channel_add` con `"plugin": "mfc.nova"` e `"preset": "Acid Bass"`.
+
+Allo stesso modo si aggiungono **Fusion** (`mfc.fusion`), **Prism** (`mfc.prism`) e **Drumkit**
+(`mfc.drumkit`). Per ascoltarne tutti i preset (scrive `fusion.wav`, `prism.wav` e `drumkit.wav`):
+
+```sh
+cargo run -p mfc-plugins --release --example instruments_demo -- .
+```
 
 ### Plugin VST3 e CLAP
 
