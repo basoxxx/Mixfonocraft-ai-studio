@@ -62,7 +62,7 @@ pub fn show(ctx: &egui::Context, studio: &mut Studio, st: &mut AudioSettings) {
 
 #[cfg(not(feature = "realtime"))]
 fn body(ui: &mut egui::Ui, _studio: &mut Studio, _st: &mut AudioSettings) {
-    ui.label(RichText::new("Audio non disponibile in questa build").color(pal::TEXT_DIM));
+    ui.label(RichText::new("Audio non disponibile in questa build").color(pal::TEXT_DIM()));
 }
 
 #[cfg(feature = "realtime")]
@@ -73,9 +73,9 @@ fn body(ui: &mut egui::Ui, studio: &mut Studio, st: &mut AudioSettings) {
     section_label(ui, "Stato");
     let sr = studio.engine.sample_rate() as u32;
     let (text, color) = if studio.audible {
-        (format!("Uscita attiva · {sr} Hz"), pal::GREEN)
+        (format!("Uscita attiva · {sr} Hz"), pal::GREEN())
     } else {
-        ("Nessuna scheda audio: uscita silenziosa".to_string(), pal::YELLOW)
+        ("Nessuna scheda audio: uscita silenziosa".to_string(), pal::YELLOW())
     };
     ui.label(RichText::new(text).color(color));
     ui.add_space(6.0);
@@ -144,7 +144,7 @@ fn body(ui: &mut egui::Ui, studio: &mut Studio, st: &mut AudioSettings) {
         ui.label(
             RichText::new(format!("Latenza di buffer ≈ {ms:.1} ms a {rate} Hz"))
                 .size(11.0)
-                .color(pal::TEXT_FAINT),
+                .color(pal::TEXT_FAINT()),
         );
     }
 
@@ -161,6 +161,6 @@ fn body(ui: &mut egui::Ui, studio: &mut Studio, st: &mut AudioSettings) {
     });
     if !studio.status.is_empty() {
         ui.add_space(6.0);
-        ui.label(RichText::new(&studio.status).size(11.0).color(pal::TEXT_DIM));
+        ui.label(RichText::new(&studio.status).size(11.0).color(pal::TEXT_DIM()));
     }
 }

@@ -11,6 +11,7 @@ pub mod plugins;
 pub mod snapshot;
 pub mod state;
 pub mod theme;
+pub mod ui_settings;
 pub mod views;
 
 pub use app::StudioApp;
@@ -36,9 +37,12 @@ pub fn run(project: mfc_core::Project, path: Option<std::path::PathBuf>) -> efra
         "Mixfonocraft AI Studio",
         options,
         Box::new(move |cc| {
-            theme::apply(&cc.egui_ctx);
             let mut studio = Studio::new(project);
             studio.path = path;
+            // Preferenze dell'interfaccia (tema, pannelli, campioni) da ui.json.
+            studio.ui = ui_settings::UiState::load();
+            theme::pal::set_light(studio.ui.settings.theme.is_light(cc.egui_ctx.system_theme()));
+            theme::apply(&cc.egui_ctx);
             Ok(Box::new(StudioApp::new(studio)))
         }),
     )

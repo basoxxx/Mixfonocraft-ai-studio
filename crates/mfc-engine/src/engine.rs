@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 
 use crossbeam_channel::{bounded, Receiver, Sender, TrySendError};
 use mfc_core::{ChannelId, PatternId, Project, Tick};
-use mfc_plugins::NoteOn;
+use mfc_plugins::{NoteOn, SharedSample};
 
 use crate::prepared::{AutoTarget, NoteEvent, Prepared};
 
@@ -48,6 +48,28 @@ pub enum EngineCommand {
         key: u8,
     },
     AllNotesOff,
+    /// Ascolto diretto di un campione sul master (browser dei campioni). `None` = ferma.
+    Audition(Option<SharedSample>),
+}
+
+/// Oggetti dismessi dal thread audio, deallocati dal thread di controllo.
+enum Garbage {
+    Prepared(#[allow(dead_code)] Box<Prepared>),
+    Sample(#[allow(dead_code)] SharedSample),
+}
+
+/// Guadagno dell'ascolto dei campioni.
+const AUDITION_GAIN: f32 = 0.8;
+/// Campioni di dissolvenza quando l'ascolto viene interrotto (evita il click).
+const AUDITION_FADE: f32 = 256.0;
+
+/// Voce di ascolto: legge il campione a velocità corretta (interpolazione lineare).
+struct Audition {
+    sample: SharedSample,
+    pos: f64,
+    step: f64,
+    gain: f32,
+    fading: bool,
 }
 
 /// Stato condiviso letto da GUI/MCP (atomics, aggiornati dal thread audio).
@@ -120,7 +142,7 @@ fn store_peak(a: &AtomicU32, v: f32) {
 #[derive(Clone)]
 pub struct EngineHandle {
     tx: Sender<EngineCommand>,
-    garbage: Receiver<Box<Prepared>>,
+    garbage: Receiver<Garbage>,
     pub shared: Arc<SharedState>,
     sample_rate: f32,
 }
@@ -170,6 +192,15 @@ impl EngineHandle {
     pub fn all_notes_off(&self) -> bool {
         self.send(EngineCommand::AllNotesOff)
     }
+    /// Ascolta un campione sull'uscita master (sostituisce l'ascolto in corso).
+    /// Il campione viaggia come `Arc`: nessuna allocazione nel thread audio.
+    pub fn audition(&self, sample: SharedSample) -> bool {
+        self.send(EngineCommand::Audition(Some(sample)))
+    }
+    /// Ferma l'ascolto del campione (con breve dissolvenza).
+    pub fn stop_audition(&self) -> bool {
+        self.send(EngineCommand::Audition(None))
+    }
     pub fn sample_rate(&self) -> f32 {
         self.sample_rate
     }
@@ -186,7 +217,8 @@ struct Active {
 pub struct Engine {
     prep: Box<Prepared>,
     rx: Receiver<EngineCommand>,
-    garbage: Sender<Box<Prepared>>,
+    garbage: Sender<Garbage>,
+    audition: Option<Audition>,
     shared: Arc<SharedState>,
     playing: bool,
     mode: PlayMode,
@@ -223,6 +255,7 @@ impl Engine {
             prep,
             rx,
             garbage: gtx,
+            audition: None,
             shared: shared.clone(),
             playing: false,
             mode: PlayMode::Song,
@@ -351,9 +384,76 @@ impl Engine {
             }
         }
         self.relocate(self.pos);
-        if let Err(e) = self.garbage.try_send(old) {
+        self.discard(Garbage::Prepared(old));
+    }
+
+    /// Affida un oggetto al thread di controllo per la deallocazione.
+    fn discard(&self, g: Garbage) {
+        if let Err(e) = self.garbage.try_send(g) {
             // Nessuno raccoglie: dealloca qui (accettabile nel render offline).
             drop(e.into_inner());
+        }
+    }
+
+    /// Avvia (o ferma, con `None`) l'ascolto di un campione.
+    pub fn set_audition(&mut self, sample: Option<SharedSample>) {
+        match sample {
+            Some(sample) => {
+                let step = if self.prep.sample_rate > 0.0 {
+                    sample.sample_rate as f64 / self.prep.sample_rate as f64
+                } else {
+                    1.0
+                };
+                let new = Audition {
+                    sample,
+                    pos: 0.0,
+                    step,
+                    gain: 1.0,
+                    fading: false,
+                };
+                if let Some(old) = self.audition.replace(new) {
+                    self.discard(Garbage::Sample(old.sample));
+                }
+            }
+            None => {
+                if let Some(a) = self.audition.as_mut() {
+                    a.fading = true;
+                }
+            }
+        }
+    }
+
+    /// `true` se un campione è in ascolto.
+    pub fn is_auditioning(&self) -> bool {
+        self.audition.is_some()
+    }
+
+    /// Somma la voce di ascolto nell'uscita; la rilascia a fine campione.
+    fn mix_audition(&mut self, out_l: &mut [f32], out_r: &mut [f32]) {
+        let Some(a) = self.audition.as_mut() else { return };
+        let len = a.sample.len();
+        let left = &a.sample.channels[0];
+        let right = a.sample.channels.get(1).unwrap_or(left);
+        let mut finished = len == 0;
+        for (l, r) in out_l.iter_mut().zip(out_r.iter_mut()) {
+            let i = a.pos as usize;
+            if i + 1 >= len || a.gain <= 0.0 {
+                finished = true;
+                break;
+            }
+            let f = (a.pos - i as f64) as f32;
+            let g = AUDITION_GAIN * a.gain;
+            *l += (left[i] + (left[i + 1] - left[i]) * f) * g;
+            *r += (right[i] + (right[i + 1] - right[i]) * f) * g;
+            a.pos += a.step;
+            if a.fading {
+                a.gain -= 1.0 / AUDITION_FADE;
+            }
+        }
+        if finished {
+            if let Some(old) = self.audition.take() {
+                self.discard(Garbage::Sample(old.sample));
+            }
         }
     }
 
@@ -387,7 +487,9 @@ impl Engine {
                 EngineCommand::Install(p) => self.install(p),
                 EngineCommand::PreviewOn { channel, key, velocity } => self.preview_on(channel, key, velocity),
                 EngineCommand::PreviewOff { channel, key } => self.preview_off(channel, key),
+                EngineCommand::Audition(s) => self.set_audition(s),
                 EngineCommand::AllNotesOff => {
+                    self.set_audition(None);
                     self.release_all();
                     for c in self.prep.channels.iter_mut() {
                         c.gen.all_notes_off();
@@ -696,10 +798,16 @@ impl Engine {
         // 3) Master → uscita.
         let ml = &self.ins_l[mfc_core::MASTER as usize];
         let mr = &self.ins_r[mfc_core::MASTER as usize];
+        for i in 0..len {
+            out_l[i] = ml[i] * self.master_gain;
+            out_r[i] = mr[i] * self.master_gain;
+        }
+        // Ascolto dei campioni dal browser: dopo il fader master, prima del limitatore.
+        self.mix_audition(out_l, out_r);
         let (mut pk_l, mut pk_r) = (0f32, 0f32);
         for i in 0..len {
-            let l = sanitize(ml[i] * self.master_gain);
-            let r = sanitize(mr[i] * self.master_gain);
+            let l = sanitize(out_l[i]);
+            let r = sanitize(out_r[i]);
             out_l[i] = l;
             out_r[i] = r;
             pk_l = pk_l.max(l.abs());
@@ -744,6 +852,58 @@ fn two_mut<T>(v: &mut [T], a: usize, b: usize) -> (&T, &mut T) {
     } else {
         let (x, y) = v.split_at_mut(a);
         (&y[0], &mut x[b])
+    }
+}
+
+#[cfg(test)]
+mod audition_tests {
+    use super::*;
+    use mfc_plugins::SampleData;
+
+    #[test]
+    fn audition_plays_and_releases() {
+        let project = Project::new("aud");
+        let (mut engine, handle) = Engine::new(&project, 48_000.0);
+        let sample = Arc::new(SampleData {
+            sample_rate: 48_000.0,
+            channels: vec![vec![0.5; 1000]],
+        });
+        assert!(handle.audition(sample.clone()));
+        let mut l = vec![0.0f32; 256];
+        let mut r = vec![0.0f32; 256];
+        engine.process(&mut l, &mut r);
+        assert!(engine.is_auditioning());
+        assert!((l[10] - 0.5 * AUDITION_GAIN).abs() < 1e-5, "{}", l[10]);
+        assert!((r[10] - 0.5 * AUDITION_GAIN).abs() < 1e-5);
+        // Fino alla fine del campione: la voce si rilascia da sola.
+        for _ in 0..8 {
+            engine.process(&mut l, &mut r);
+        }
+        assert!(!engine.is_auditioning());
+        assert_eq!(l[255], 0.0);
+        // L'Arc è tornato al thread di controllo, che lo dealloca.
+        handle.collect_garbage();
+        assert_eq!(Arc::strong_count(&sample), 1);
+    }
+
+    #[test]
+    fn stop_audition_fades_out() {
+        let project = Project::new("aud");
+        let (mut engine, handle) = Engine::new(&project, 48_000.0);
+        let sample = Arc::new(SampleData {
+            sample_rate: 24_000.0,
+            channels: vec![vec![1.0; 48_000], vec![-1.0; 48_000]],
+        });
+        handle.audition(sample);
+        let mut l = vec![0.0f32; 128];
+        let mut r = vec![0.0f32; 128];
+        engine.process(&mut l, &mut r);
+        assert!(r[5] < 0.0, "canale destro dal secondo canale del campione");
+        handle.stop_audition();
+        engine.process(&mut l, &mut r);
+        engine.process(&mut l, &mut r);
+        engine.process(&mut l, &mut r);
+        assert!(!engine.is_auditioning());
     }
 }
 

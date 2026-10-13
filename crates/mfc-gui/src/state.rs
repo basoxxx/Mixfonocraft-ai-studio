@@ -80,6 +80,8 @@ pub struct Studio {
     pub live: LiveInput,
     /// Registrazione delle note live nel pattern corrente (durante la riproduzione).
     pub recording: bool,
+    /// Preferenze dell'interfaccia (tema, pannelli, cartelle campioni) e browser dei campioni.
+    pub ui: crate::ui_settings::UiState,
     /// Backend attivo; `None` solo durante il riavvio, per rilasciare il dispositivo.
     _backend: Option<Backend>,
 }
@@ -116,6 +118,7 @@ impl Studio {
             plugin_windows: HashMap::new(),
             live: LiveInput::new(handle.clone()),
             recording: false,
+            ui: Default::default(),
             engine: handle,
             audible,
             audio_config,
