@@ -4,15 +4,18 @@
 use std::collections::{BTreeMap, HashMap};
 
 use mfc_core::{
-    Channel, ChannelId, ChannelKind, ClipId, ClipSource, Color, EffectSlot, Note, Pattern, PatternId, PlaylistClip,
-    PlaylistTrack, PluginInstance, Project, Route, Tick, TimeSignature, MIXER_INSERTS, PLAYLIST_TRACKS,
+    AutomationClip, AutomationId, AutomationPoint, AutomationTarget, Channel, ChannelId, ChannelKind, ClipId,
+    ClipSource, Color, EffectSlot, Note, Pattern, PatternId, PlaylistClip, PlaylistTrack, PluginInstance, Project,
+    Route, Tick, TimeSignature, MIXER_INSERTS, PLAYLIST_TRACKS,
 };
 
 use crate::events::{decode_text, event_name, id, parse_version, FlpFile, RawEvent, TextEncoding};
-use crate::plugin_map::{effect_kind, generator_kind, FOREIGN_EFFECT, FOREIGN_GENERATOR};
+use crate::plugin_map::{
+    effect_kind, external_from_wrapper, generator_kind, FL_WRAPPER, FOREIGN_EFFECT, FOREIGN_GENERATOR,
+};
 use crate::structs::{
-    insert_flag, insert_flags_parse, mixer_param, FlLevels, FlMixerParam, FlNote, FlPlaylistItem, FlTrackData,
-    ITEM_FLAG_MUTED, ITEM_SIZE_NEW, ITEM_SIZE_OLD, NOTE_FLAG_SLIDE,
+    insert_flag, insert_flags_parse, mixer_param, FlAutoTarget, FlAutomation, FlLevels, FlMixerParam, FlNote,
+    FlPlaylistItem, FlRemoteController, FlTrackData, ITEM_FLAG_MUTED, ITEM_SIZE_NEW, ITEM_SIZE_OLD, NOTE_FLAG_SLIDE,
 };
 use crate::FlpError;
 
@@ -42,6 +45,30 @@ struct ChanAcc {
     enabled: Option<bool>,
     root: Option<u32>,
     children: Vec<u16>,
+    /// Punti di automazione (evento 234, solo canali di tipo 5).
+    automation: Option<Vec<u8>>,
+    /// Collegamento al bersaglio (evento 227 nel blocco del canale di automazione).
+    remote: Option<Vec<u8>>,
+}
+
+/// Plugin esterno (VST3/CLAP) riconosciuto nei dati di un "Fruity Wrapper".
+fn external_plugin(internal: &str, data: Option<&[u8]>) -> Option<PluginInstance> {
+    if !internal.trim().eq_ignore_ascii_case(FL_WRAPPER) {
+        return None;
+    }
+    let w = external_from_wrapper(data?)?;
+    let mut pi = PluginInstance::new(w.plugin.kind());
+    pi.opaque_state = w.state;
+    pi.foreign_name = w.name;
+    Some(pi)
+}
+
+/// Clip di automazione FL riconosciuta (punti + bersaglio noto).
+struct FlAuto {
+    iid: u16,
+    name: String,
+    points: FlAutomation,
+    target: FlAutoTarget,
 }
 
 #[derive(Default)]
@@ -207,6 +234,7 @@ impl Collector {
             | id::CHAN_VOL_BYTE
             | id::CHAN_PAN_BYTE
             | id::CHAN_ROOT_NOTE
+            | id::CHAN_AUTOMATION
             | id::CHAN_CHILDREN => {
                 let text = self.text(e);
                 let Some(c) = self.channel() else { return false };
@@ -222,8 +250,16 @@ impl Collector {
                     id::CHAN_VOL_BYTE => c.vol_byte = num.map(|v| v as u8),
                     id::CHAN_PAN_BYTE => c.pan_byte = num.map(|v| v as u8),
                     id::CHAN_ROOT_NOTE => c.root = num,
+                    id::CHAN_AUTOMATION => c.automation = e.as_data().map(<[u8]>::to_vec),
                     _ => c.children.extend(num.map(|v| v as u16)),
                 }
+            }
+            // Collegamento dell'automazione: mappato solo dentro un canale di tipo 5.
+            id::REMOTE_CONTROLLER => {
+                let Some(c) = self.channel().filter(|c| c.ty == Some(5)) else {
+                    return false;
+                };
+                c.remote = e.as_data().map(<[u8]>::to_vec);
             }
 
             // --- plugin (canale o slot del mixer a seconda del contesto) ---
@@ -455,7 +491,32 @@ pub fn to_project(file: &FlpFile) -> Result<ImportResult, FlpError> {
 
     // Canali.
     let mut chan_ids: HashMap<u16, (ChannelId, ChannelKind)> = HashMap::new();
+    let mut fl_autos: Vec<FlAuto> = Vec::new();
     for ch in &c.channels {
+        // Canali di automazione con punti e bersaglio riconosciuti → clip di automazione.
+        if ch.ty == Some(5) {
+            let points = ch.automation.as_deref().and_then(FlAutomation::parse);
+            let target = ch
+                .remote
+                .as_deref()
+                .and_then(FlRemoteController::parse)
+                .and_then(FlAutoTarget::from_remote);
+            if let (Some(points), Some(target)) = (points, target) {
+                let name = [&ch.name, &ch.name_old]
+                    .into_iter()
+                    .flatten()
+                    .find(|s| !s.is_empty())
+                    .cloned()
+                    .unwrap_or_else(|| format!("Automation {}", ch.iid as u32 + 1));
+                fl_autos.push(FlAuto {
+                    iid: ch.iid,
+                    name,
+                    points,
+                    target,
+                });
+                continue;
+            }
+        }
         let cid = ChannelId(p.alloc_id());
         let internal = ch.internal_name.clone().filter(|s| !s.is_empty());
         let kind = match ch.ty {
@@ -498,21 +559,20 @@ pub fn to_project(file: &FlpFile) -> Result<ImportResult, FlpError> {
             }
             ChannelKind::Generator => {
                 let fl = internal.clone().unwrap_or_default();
-                match generator_kind(&fl) {
-                    Some(k) => {
-                        let mut pi = PluginInstance::new(k);
-                        pi.opaque_state = ch.plugin_data.clone();
-                        pi
-                    }
-                    None => {
-                        warnings.push(format!(
-                            "canale '{name}': plugin '{fl}' non supportato, sostituito da {FOREIGN_GENERATOR} (stato preservato)"
-                        ));
-                        let mut pi = PluginInstance::new(FOREIGN_GENERATOR);
-                        pi.foreign_name = Some(fl);
-                        pi.opaque_state = ch.plugin_data.clone();
-                        pi
-                    }
+                if let Some(pi) = external_plugin(&fl, ch.plugin_data.as_deref()) {
+                    pi
+                } else if let Some(k) = generator_kind(&fl) {
+                    let mut pi = PluginInstance::new(k);
+                    pi.opaque_state = ch.plugin_data.clone();
+                    pi
+                } else {
+                    warnings.push(format!(
+                        "canale '{name}': plugin '{fl}' non supportato, sostituito da {FOREIGN_GENERATOR} (stato preservato)"
+                    ));
+                    let mut pi = PluginInstance::new(FOREIGN_GENERATOR);
+                    pi.foreign_name = Some(fl);
+                    pi.opaque_state = ch.plugin_data.clone();
+                    pi
                 }
             }
         };
@@ -568,6 +628,66 @@ pub fn to_project(file: &FlpFile) -> Result<ImportResult, FlpError> {
         if let Some(chan) = p.channels.get_mut(i) {
             chan.layer_children = kids;
         }
+    }
+
+    // Clip di automazione (risolte dopo i canali: il bersaglio può seguire la clip).
+    let mut auto_ids: HashMap<u16, AutomationId> = HashMap::new();
+    for fa in fl_autos {
+        let ch = |iid: u16| chan_ids.get(&iid).map(|v| v.0);
+        let target = match fa.target {
+            FlAutoTarget::MasterVolume => Some(AutomationTarget::MasterVolume),
+            FlAutoTarget::Tempo => Some(AutomationTarget::Tempo),
+            FlAutoTarget::ChannelVolume(c) => ch(c).map(|channel| AutomationTarget::ChannelVolume { channel }),
+            FlAutoTarget::ChannelPan(c) => ch(c).map(|channel| AutomationTarget::ChannelPan { channel }),
+            FlAutoTarget::ChannelPitch(c) => ch(c).map(|channel| AutomationTarget::ChannelPitch { channel }),
+            FlAutoTarget::MixerVolume(i) if i as usize <= MIXER_INSERTS => {
+                Some(AutomationTarget::MixerVolume { insert: i })
+            }
+            FlAutoTarget::MixerPan(i) if i as usize <= MIXER_INSERTS => Some(AutomationTarget::MixerPan { insert: i }),
+            _ => None,
+        };
+        let Some(target) = target else {
+            warnings.push(format!(
+                "automazione '{}': bersaglio {:?} inesistente nel progetto, non importata",
+                fa.name, fa.target
+            ));
+            continue;
+        };
+        let (lo, hi) = fa.target.range();
+        let mut points: Vec<AutomationPoint> = fa
+            .points
+            .points
+            .iter()
+            .map(|pt| AutomationPoint {
+                position: if pt.position.is_finite() && pt.position > 0.0 {
+                    pt.position.round() as Tick
+                } else {
+                    0
+                },
+                value: if pt.value.is_finite() {
+                    (pt.value as f32).clamp(0.0, 1.0)
+                } else {
+                    0.0
+                },
+                tension: if pt.tension.is_finite() {
+                    pt.tension.clamp(-1.0, 1.0)
+                } else {
+                    0.0
+                },
+            })
+            .collect();
+        // Scarti negativi (file malformati) non devono rompere l'ordinamento.
+        points.sort_by_key(|pt| pt.position);
+        let aid = AutomationId(p.alloc_id());
+        auto_ids.insert(fa.iid, aid);
+        p.automations.push(AutomationClip {
+            id: aid,
+            name: fa.name,
+            target,
+            min: lo,
+            max: hi,
+            points,
+        });
     }
 
     // Pattern e note.
@@ -686,6 +806,13 @@ pub fn to_project(file: &FlpFile) -> Result<ImportResult, FlpError> {
                         0
                     };
                     (ClipSource::Pattern(*pid), off)
+                } else if let Some(aid) = auto_ids.get(&it.item_index) {
+                    let off = if it.start_offset.is_finite() && it.start_offset > 0.0 {
+                        (it.start_offset as f64 * ppq as f64).round() as Tick
+                    } else {
+                        0
+                    };
+                    (ClipSource::Automation(*aid), off)
                 } else {
                     match chan_ids.get(&it.item_index) {
                         Some((cid, ChannelKind::AudioClip | ChannelKind::Sampler)) => {
@@ -775,6 +902,11 @@ pub fn to_project(file: &FlpFile) -> Result<ImportResult, FlpError> {
         }
         for (slot, s) in &ins.slots {
             let fl = s.internal_name.clone().unwrap_or_default();
+            if let Some(pi) = external_plugin(&fl, s.data.as_deref()) {
+                slot_pos.insert((i, *slot), mi.effects.len());
+                mi.effects.push(EffectSlot::new(pi));
+                continue;
+            }
             let slot_obj = match effect_kind(&fl) {
                 Some(k) => {
                     let mut pi = PluginInstance::new(k);

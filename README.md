@@ -270,12 +270,23 @@ memoria, ne verificano struttura e render (durata, livello, dissolvenza), fanno 
 ## Limiti attuali
 
 - Plugin VST3/CLAP: su Linux l'interfaccia originale non è disponibile (si usa l'editor generico);
-  i plugin VST2 e AU non sono supportati; i plugin esterni non vengono esportati nel `.flp`.
+  i plugin VST2 e AU non sono supportati.
+- Nel `.flp` i plugin VST3/CLAP vengono esportati come "Fruity Wrapper" con nome, percorso, id e
+  stato salvato; reimportandoli si riottengono plugin VST3/CLAP con lo stesso stato. È
+  un'esportazione best-effort: l'ordine del class id VST3, il formato dello stato atteso da FL e la
+  struttura usata da FL per i CLAP non sono documentati, quindi in FL Studio il plugin potrebbe
+  risultare mancante o aprirsi senza il suo preset.
 - Le modifiche ai parametri fatte nell'interfaccia originale del plugin vengono salvate nello stato
   del plugin, ma non generano automazioni.
 - L'esportazione `.flp` non è stata verificata con FL Studio reale. I test coprono il round-trip
   interno e la struttura del file.
-- Le clip di automazione non vengono esportate nel `.flp`.
+- Nel `.flp` vengono esportate le clip di automazione di volume, pan e pitch dei canali, volume e
+  pan degli insert del mixer, volume master e tempo, con i loro punti e la posizione in Playlist.
+  Le automazioni dei parametri dei plugin e del mix degli slot vengono saltate con un avviso. Il
+  collegamento tra la clip e il parametro segue una convenzione non documentata da FL: i file
+  esportati si reimportano correttamente in Mixfonocraft, ma in FL Studio la clip potrebbe non
+  risultare collegata. Le clip di automazione dei file creati con FL Studio vengono importate solo
+  quando il collegamento è riconoscibile; altrimenti restano canali di automazione vuoti.
 - I plugin FL sconosciuti vengono conservati come dati opachi e riesportati senza modifiche, ma
   non suonano.
 - I plugin nativi senza equivalente in FL Studio (drum synth, supersaw) diventano canali sampler
