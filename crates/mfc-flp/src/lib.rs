@@ -9,7 +9,7 @@
 //! Tre livelli:
 //! 1. eventi lossless: [`parse`] / [`write`] (round-trip byte-identico), [`inspect`];
 //! 2. import semantico: [`to_project`] → [`ImportResult`];
-//! 3. export semantico: [`from_project`].
+//! 3. export semantico: [`from_project`] / [`from_project_report`] (con avvisi).
 
 use std::path::Path;
 
@@ -25,7 +25,7 @@ pub use events::{
     decode_text, encode_text, encoding_for_version, event_name, id, inspect, EventKind, EventSummary, EventValue,
     FlpFile, FlpHeader, RawEvent, TextEncoding,
 };
-pub use export::{from_project, EXPORT_VERSION};
+pub use export::{from_project, from_project_report, ExportResult, EXPORT_VERSION};
 pub use import::{to_project, ImportResult};
 pub use reader::{parse, parse_events};
 pub use writer::{write, write_events};

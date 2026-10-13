@@ -3,13 +3,16 @@
 
 use std::collections::HashMap;
 
-use mfc_core::{ChannelId, ChannelKind, ClipSource, Color, MixerInsert, PatternId, Project, PLAYLIST_TRACKS};
+use mfc_core::{
+    AutomationClip, AutomationId, AutomationTarget, ChannelId, ChannelKind, ClipSource, Color, MixerInsert, PatternId,
+    PluginInstance, Project, PLAYLIST_TRACKS,
+};
 
 use crate::events::{id, FlpFile, FlpHeader, RawEvent, TextEncoding};
-use crate::plugin_map::{fl_effect_name, fl_generator_name, FL_WRAPPER};
+use crate::plugin_map::{fl_effect_name, fl_generator_name, wrapper_data, ExternalPlugin, FL_WRAPPER};
 use crate::structs::{
-    insert_flag, insert_flags_write, mixer_param, FlLevels, FlMixerParam, FlNote, FlPlaylistItem, FlTrackData,
-    ITEM_FLAG_MUTED, NOTE_FLAG_SLIDE, PATTERN_BASE,
+    insert_flag, insert_flags_write, mixer_param, FlAutoPoint, FlAutoTarget, FlAutomation, FlLevels, FlMixerParam,
+    FlNote, FlPlaylistItem, FlTrackData, ITEM_FLAG_MUTED, NOTE_FLAG_SLIDE, PATTERN_BASE,
 };
 
 /// Versione di FL dichiarata nei file esportati.
@@ -48,15 +51,50 @@ impl Out {
     }
 }
 
+/// Risultato dell'export: file + avvisi su ciò che non è stato possibile scrivere.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExportResult {
+    pub file: FlpFile,
+    pub warnings: Vec<String>,
+}
+
+/// Plugin esterno (VST3/CLAP) → (nome visualizzato, dati del "Fruity Wrapper").
+/// `None` se il kind non è un plugin esterno valido.
+fn external_wrapper(pl: &PluginInstance) -> Option<(String, Vec<u8>)> {
+    if !pl.is_external() {
+        return None;
+    }
+    let ext = ExternalPlugin::parse(&pl.kind)?;
+    let name = pl
+        .foreign_name
+        .clone()
+        .filter(|n| !n.is_empty() && n != FL_WRAPPER)
+        .unwrap_or_else(|| ext.file_stem());
+    let data = wrapper_data(&ext, &name, "", pl.opaque_state.as_deref());
+    Some((name, data))
+}
+
 /// Plugin del canale in termini FL: (tipo canale, nome interno, dati plugin).
-fn channel_plugin(ch: &mfc_core::Channel) -> (u8, Option<String>, Option<Vec<u8>>) {
+fn channel_plugin(ch: &mfc_core::Channel, warnings: &mut Vec<String>) -> (u8, Option<String>, Option<Vec<u8>>) {
     let pl = &ch.plugin;
     match ch.kind {
         ChannelKind::Sampler | ChannelKind::Automation => (0, None, None),
         ChannelKind::AudioClip => (2, None, None),
         ChannelKind::Layer => (3, None, None),
         ChannelKind::Generator => {
-            if let Some(f) = pl.foreign_name.as_ref().filter(|f| !f.is_empty()) {
+            if pl.is_external() {
+                match external_wrapper(pl) {
+                    // Strumento di terze parti: tipo 4 ("Instrument") con il wrapper.
+                    Some((_, data)) => (4, Some(FL_WRAPPER.to_string()), Some(data)),
+                    None => {
+                        warnings.push(format!(
+                            "canale '{}': kind esterno '{}' non valido, esportato come sampler vuoto",
+                            ch.name, pl.kind
+                        ));
+                        (0, None, None)
+                    }
+                }
+            } else if let Some(f) = pl.foreign_name.as_ref().filter(|f| !f.is_empty()) {
                 let ty = if f == FL_WRAPPER { 4 } else { 2 };
                 (ty, Some(f.clone()), pl.opaque_state.clone())
             } else if let Some(f) = fl_generator_name(&pl.kind) {
@@ -69,8 +107,75 @@ fn channel_plugin(ch: &mfc_core::Channel) -> (u8, Option<String>, Option<Vec<u8>
     }
 }
 
+/// Bersaglio FL di un'automazione, se esiste un equivalente.
+fn fl_target(t: &AutomationTarget, chan_iid: &HashMap<ChannelId, u16>) -> Result<FlAutoTarget, String> {
+    let ch = |c: &ChannelId| {
+        chan_iid
+            .get(c)
+            .copied()
+            .ok_or_else(|| format!("canale {} inesistente", c.0))
+    };
+    let ins = |i: u16| {
+        if (i as usize) < EXPORT_INSERTS - 1 {
+            Ok(i)
+        } else {
+            Err(format!("insert {i} fuori range"))
+        }
+    };
+    Ok(match t {
+        AutomationTarget::MasterVolume => FlAutoTarget::MasterVolume,
+        AutomationTarget::Tempo => FlAutoTarget::Tempo,
+        AutomationTarget::ChannelVolume { channel } => FlAutoTarget::ChannelVolume(ch(channel)?),
+        AutomationTarget::ChannelPan { channel } => FlAutoTarget::ChannelPan(ch(channel)?),
+        AutomationTarget::ChannelPitch { channel } => FlAutoTarget::ChannelPitch(ch(channel)?),
+        AutomationTarget::MixerVolume { insert } => FlAutoTarget::MixerVolume(ins(*insert)?),
+        AutomationTarget::MixerPan { insert } => FlAutoTarget::MixerPan(ins(*insert)?),
+        AutomationTarget::ChannelParam { param, .. } => {
+            return Err(format!(
+                "parametro di plugin '{param}' senza equivalente FL documentato"
+            ))
+        }
+        AutomationTarget::EffectParam { param, .. } => {
+            return Err(format!(
+                "parametro d'effetto '{param}' senza equivalente FL documentato"
+            ))
+        }
+        AutomationTarget::EffectMix { .. } => return Err("mix di uno slot senza equivalente FL documentato".into()),
+    })
+}
+
+/// Punti della clip convertiti nel range del parametro FL (0..=1); conta i valori limitati.
+fn fl_points(a: &AutomationClip, target: FlAutoTarget, clipped: &mut usize) -> FlAutomation {
+    let (lo, hi) = target.range();
+    let mut pts = a.points.clone();
+    pts.sort_by_key(|p| p.position);
+    let points = pts
+        .iter()
+        .map(|pt| {
+            let real = a.min + (a.max - a.min) * pt.value.clamp(0.0, 1.0);
+            let v = (real - lo) / (hi - lo);
+            if !(-1e-6..=1.0 + 1e-6).contains(&v) {
+                *clipped += 1;
+            }
+            FlAutoPoint {
+                position: pt.position as f64,
+                value: v.clamp(0.0, 1.0) as f64,
+                tension: pt.tension.clamp(-1.0, 1.0),
+            }
+        })
+        .collect();
+    FlAutomation { points }
+}
+
 /// Converte il progetto in un file FLP.
 pub fn from_project(p: &Project) -> FlpFile {
+    from_project_report(p).file
+}
+
+/// Converte il progetto in un file FLP riportando gli avvisi (automazioni senza
+/// equivalente FL, plugin esterni non validi, valori limitati…).
+pub fn from_project_report(p: &Project) -> ExportResult {
+    let mut warnings: Vec<String> = Vec::new();
     let mut o = Out(Vec::new());
     let ppq = p.time.ppq.max(1);
 
@@ -107,6 +212,19 @@ pub fn from_project(p: &Project) -> FlpFile {
     o.text_nonempty(id::ARTISTS, &p.info.artist);
 
     let chan_iid: HashMap<ChannelId, u16> = p.channels.iter().enumerate().map(|(i, c)| (c.id, i as u16)).collect();
+
+    // Clip di automazione esportabili: diventano canali di tipo 5 dopo i canali normali.
+    let mut autos: Vec<(&AutomationClip, FlAutoTarget, u16)> = Vec::new();
+    for a in &p.automations {
+        match fl_target(&a.target, &chan_iid) {
+            Ok(t) => {
+                let iid = (p.channels.len() + autos.len()).min(u16::MAX as usize) as u16;
+                autos.push((a, t, iid));
+            }
+            Err(why) => warnings.push(format!("automazione '{}' non esportata: {why}", a.name)),
+        }
+    }
+    let auto_iid: HashMap<AutomationId, u16> = autos.iter().map(|(a, _, i)| (a.id, *i)).collect();
 
     // Note dei pattern (primo blocco PatNew).
     for (i, pt) in p.patterns.iter().enumerate() {
@@ -152,7 +270,7 @@ pub fn from_project(p: &Project) -> FlpFile {
 
     // Canali.
     for (i, ch) in p.channels.iter().enumerate() {
-        let (ty, internal, data) = channel_plugin(ch);
+        let (ty, internal, data) = channel_plugin(ch, &mut warnings);
         o.num(id::CHAN_NEW, i as u32);
         o.num(id::CHAN_TYPE, ty as u32);
         if let Some(n) = &internal {
@@ -184,6 +302,27 @@ pub fn from_project(p: &Project) -> FlpFile {
         }
     }
 
+    // Canali di automazione: punti (234) e collegamento al bersaglio (227).
+    let mut clipped = 0usize;
+    for (a, target, iid) in &autos {
+        o.num(id::CHAN_NEW, *iid as u32);
+        o.num(id::CHAN_TYPE, 5);
+        let name = if a.name.is_empty() {
+            "Automation"
+        } else {
+            a.name.as_str()
+        };
+        o.text(id::PLUGIN_NAME, name);
+        o.num(id::CHAN_ENABLED, 1);
+        o.data(id::CHAN_AUTOMATION, fl_points(a, *target, &mut clipped).write());
+        o.data(id::REMOTE_CONTROLLER, target.to_remote().write());
+    }
+    if clipped > 0 {
+        warnings.push(format!(
+            "{clipped} punti di automazione fuori dal range del parametro FL limitati"
+        ));
+    }
+
     // Arrangement e Playlist.
     o.num(id::ARRANGEMENT_NEW, 0);
     o.text(id::ARRANGEMENT_NAME, "Arrangement");
@@ -212,7 +351,16 @@ pub fn from_project(p: &Project) -> FlpFile {
                 };
                 (iid, s, e)
             }
-            ClipSource::Automation(_) => continue,
+            ClipSource::Automation(aid) => {
+                let Some(&iid) = auto_iid.get(&aid) else { continue };
+                let (s, e) = if c.offset > 0 {
+                    let b = |t: u64| (t as f64 / ppq as f64) as f32;
+                    (b(c.offset), b(c.offset.saturating_add(c.length)))
+                } else {
+                    (-1.0, -1.0)
+                };
+                (iid, s, e)
+            }
         };
         items.push(FlPlaylistItem {
             position: c.position.min(u32::MAX as u64) as u32,
@@ -312,6 +460,21 @@ pub fn from_project(p: &Project) -> FlpFile {
         o.data(id::INSERT_FLAGS, insert_flags_write(flags));
         for k in 0..EXPORT_SLOTS {
             if let Some(fx) = mi.effects.get(k as usize) {
+                if fx.plugin.is_external() {
+                    match external_wrapper(&fx.plugin) {
+                        Some((name, data)) => {
+                            o.text(id::PLUGIN_INTERNAL_NAME, FL_WRAPPER);
+                            o.text(id::PLUGIN_NAME, &name);
+                            o.data(id::PLUGIN_DATA, data);
+                        }
+                        None => warnings.push(format!(
+                            "insert {i} slot {k}: kind esterno '{}' non valido, slot vuoto",
+                            fx.plugin.kind
+                        )),
+                    }
+                    o.num(id::SLOT_INDEX, k as u32);
+                    continue;
+                }
                 let name = fx
                     .plugin
                     .foreign_name
@@ -342,13 +505,14 @@ pub fn from_project(p: &Project) -> FlpFile {
         o.num(id::INSERT_OUTPUT, u32::MAX);
     }
 
-    FlpFile {
+    let file = FlpFile {
         header: FlpHeader {
             format: 0,
-            n_channels: p.channels.len().min(u16::MAX as usize) as u16,
+            n_channels: (p.channels.len() + autos.len()).min(u16::MAX as usize) as u16,
             ppq,
         },
         events: o.0,
         trailing: Vec::new(),
-    }
+    };
+    ExportResult { file, warnings }
 }
