@@ -140,6 +140,8 @@ pub struct StudioApp {
     playlist: views::playlist::PlaylistView,
     dialog: Option<FileDialog>,
     audio_settings: views::settings::AudioSettings,
+    /// Autosalvataggio e recupero (vedi `autosave.rs`).
+    pub autosave: crate::autosave::Autosave,
 }
 
 impl StudioApp {
@@ -150,6 +152,7 @@ impl StudioApp {
             playlist: Default::default(),
             dialog: None,
             audio_settings: Default::default(),
+            autosave: Default::default(),
         }
     }
 
@@ -210,6 +213,8 @@ impl StudioApp {
         views::plugin_editor::show(ui.ctx(), &mut self.studio);
         views::settings::show(ui.ctx(), &mut self.studio, &mut self.audio_settings);
         self.file_dialog(ui.ctx());
+        // HOOK autosave: salvataggio periodico e finestra di recupero.
+        self.autosave.tick(&mut self.studio, ui.ctx());
         drop_overlay(ui.ctx());
         if self.studio.engine.shared.is_playing() {
             ui.ctx().request_repaint();
