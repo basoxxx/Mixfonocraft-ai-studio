@@ -391,7 +391,9 @@ impl Command {
                 mixer_insert,
             } => {
                 let id = ChannelId(p.alloc_id());
-                let mut ch = Channel::new(id, name.clone(), *kind, plugin.clone());
+                let mut plugin = plugin.clone();
+                assign_instance_id(p, &mut plugin, false);
+                let mut ch = Channel::new(id, name.clone(), *kind, plugin);
                 if let Some(i) = mixer_insert {
                     check_insert(p, *i)?;
                     ch.mixer_insert = *i;
@@ -419,6 +421,7 @@ impl Command {
                 let mut ch = src;
                 ch.id = id;
                 ch.name = format!("{} #2", ch.name);
+                assign_instance_id(p, &mut ch.plugin, true);
                 let idx = p.channels.iter().position(|c| c.id == *channel).unwrap();
                 p.channels.insert(idx + 1, ch);
                 return Ok(Outcome::Channel(id));
@@ -839,6 +842,8 @@ impl Command {
             }
             AddEffect { insert, plugin, slot } => {
                 check_insert(p, *insert)?;
+                let mut plugin = plugin.clone();
+                assign_instance_id(p, &mut plugin, false);
                 let ins = p.insert_mut(*insert).unwrap();
                 if ins.effects.len() >= FX_SLOTS {
                     return Err(CoreError::Invalid(format!(
@@ -848,7 +853,7 @@ impl Command {
                 let idx = slot
                     .map(|s| (s as usize).min(ins.effects.len()))
                     .unwrap_or(ins.effects.len());
-                ins.effects.insert(idx, EffectSlot::new(plugin.clone()));
+                ins.effects.insert(idx, EffectSlot::new(plugin));
                 return Ok(Outcome::Count(idx));
             }
             RemoveEffect { insert, slot } => {
@@ -947,6 +952,13 @@ impl Command {
             }
         }
         Ok(Outcome::None)
+    }
+}
+
+/// Assegna un `instance_id` nuovo ai plugin esterni (all'aggiunta o alla clonazione).
+fn assign_instance_id(p: &mut Project, plugin: &mut PluginInstance, force_new: bool) {
+    if plugin.is_external() && (force_new || plugin.instance_id.is_none()) {
+        plugin.instance_id = Some(format!("ext{}", p.alloc_id()));
     }
 }
 
@@ -1107,6 +1119,45 @@ mod tests {
         .unwrap();
         let n = p.pattern(pt).unwrap().notes[&c][0];
         assert_eq!((n.position, n.length, n.key), (24, 24, 72));
+    }
+
+    #[test]
+    fn external_plugins_get_unique_instance_ids() {
+        let mut p = Project::new("t");
+        let ext = PluginInstance::new("vst3:/x/Synth.vst3::ABCD");
+        let Outcome::Channel(a) = Command::AddChannel {
+            name: "A".into(),
+            kind: ChannelKind::Generator,
+            plugin: ext.clone(),
+            mixer_insert: None,
+        }
+        .apply(&mut p)
+        .unwrap() else {
+            panic!()
+        };
+        let Outcome::Channel(b) = Command::CloneChannel { channel: a }.apply(&mut p).unwrap() else {
+            panic!()
+        };
+        let ia = p.channel(a).unwrap().plugin.instance_id.clone().unwrap();
+        let ib = p.channel(b).unwrap().plugin.instance_id.clone().unwrap();
+        assert_ne!(ia, ib);
+        Command::AddEffect {
+            insert: 1,
+            plugin: PluginInstance::new("clap:/x/fx.clap::com.fx"),
+            slot: None,
+        }
+        .apply(&mut p)
+        .unwrap();
+        assert!(p.insert(1).unwrap().effects[0].plugin.instance_id.is_some());
+        // I plugin nativi non ricevono id.
+        Command::AddEffect {
+            insert: 1,
+            plugin: PluginInstance::new("mfc.reverb"),
+            slot: None,
+        }
+        .apply(&mut p)
+        .unwrap();
+        assert!(p.insert(1).unwrap().effects[1].plugin.instance_id.is_none());
     }
 
     #[test]

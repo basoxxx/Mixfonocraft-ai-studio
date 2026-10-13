@@ -1,0 +1,12 @@
+[package]
+name = "mfc-test-vst3"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+description = "Plugin vst3 di prova per i test d'integrazione di mfc-host"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]

@@ -94,7 +94,14 @@ pub struct PluginInstance {
     /// Nome originale del plugin quando importato e non supportato nativamente.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub foreign_name: Option<String>,
+    /// Identificativo stabile dell'istanza per i plugin esterni (VST3/CLAP): l'host riusa
+    /// la stessa istanza tra una ricompilazione del motore e l'altra.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub instance_id: Option<String>,
 }
+
+/// Prefissi dei plugin esterni.
+pub const EXTERNAL_PREFIXES: [&str; 2] = ["vst3:", "clap:"];
 
 impl PluginInstance {
     pub fn new(kind: impl Into<String>) -> Self {
@@ -107,6 +114,11 @@ impl PluginInstance {
         self.params.insert(name.into(), value);
         self
     }
+    /// `true` per i plugin esterni (VST3/CLAP) ospitati da `mfc-host`.
+    pub fn is_external(&self) -> bool {
+        EXTERNAL_PREFIXES.iter().any(|p| self.kind.starts_with(p))
+    }
+
     pub fn param(&self, name: &str) -> Option<f32> {
         self.params.get(name).copied()
     }
