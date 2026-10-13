@@ -11,6 +11,7 @@ pub mod plugins;
 pub mod snapshot;
 pub mod state;
 pub mod theme;
+pub mod update;
 pub mod views;
 
 pub use app::StudioApp;
@@ -39,7 +40,9 @@ pub fn run(project: mfc_core::Project, path: Option<std::path::PathBuf>) -> efra
             theme::apply(&cc.egui_ctx);
             let mut studio = Studio::new(project);
             studio.path = path;
-            Ok(Box::new(StudioApp::new(studio)))
+            let mut app = StudioApp::new(studio);
+            app.updater = views::update_ui::Updater::load();
+            Ok(Box::new(app))
         }),
     )
 }

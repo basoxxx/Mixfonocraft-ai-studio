@@ -140,6 +140,8 @@ pub struct StudioApp {
     playlist: views::playlist::PlaylistView,
     dialog: Option<FileDialog>,
     audio_settings: views::settings::AudioSettings,
+    /// Aggiornamenti automatici (inerte finché non si usa `Updater::load`).
+    pub updater: views::update_ui::Updater,
 }
 
 impl StudioApp {
@@ -150,6 +152,7 @@ impl StudioApp {
             playlist: Default::default(),
             dialog: None,
             audio_settings: Default::default(),
+            updater: Default::default(),
         }
     }
 
@@ -209,6 +212,7 @@ impl StudioApp {
             });
         views::plugin_editor::show(ui.ctx(), &mut self.studio);
         views::settings::show(ui.ctx(), &mut self.studio, &mut self.audio_settings);
+        views::update_ui::show(ui.ctx(), &mut self.studio, &mut self.updater);
         self.file_dialog(ui.ctx());
         drop_overlay(ui.ctx());
         if self.studio.engine.shared.is_playing() {
@@ -411,6 +415,9 @@ impl StudioApp {
                         }
                     }
                 });
+            });
+            ui.menu_button(RichText::new("Aiuto").color(pal::TEXT_DIM), |ui| {
+                views::update_ui::help_menu(ui, &mut self.updater)
             });
             toolbar_sep(ui, h);
 
