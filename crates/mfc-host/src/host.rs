@@ -16,6 +16,22 @@ struct Live {
     kind: String,
     instance: Arc<dyn ExternalInstance>,
     sample_rate: f32,
+    /// Ultimi valori dei parametri applicati dal progetto: a ogni ricompilazione si
+    /// riapplicano solo quelli cambiati (undo/redo), senza sovrascrivere le modifiche
+    /// fatte nel frattempo dall'interfaccia del plugin.
+    applied: HashMap<u32, f32>,
+}
+
+/// Applica i parametri del progetto diversi da quelli già applicati.
+fn apply_params(inst: &PluginInstance, instance: &dyn ExternalInstance, applied: &mut HashMap<u32, f32>) {
+    for (k, v) in &inst.params {
+        if let Some(pid) = parse_param_key(k) {
+            if applied.get(&pid) != Some(v) {
+                instance.set_param_normalized(pid, (*v as f64).clamp(0.0, 1.0));
+                applied.insert(pid, *v);
+            }
+        }
+    }
 }
 
 /// Host dei plugin esterni.
@@ -131,6 +147,7 @@ impl Host {
                         l.instance.prepare(sample_rate, DEFAULT_MAX_BLOCK)?;
                         l.sample_rate = sample_rate;
                     }
+                    apply_params(inst, l.instance.as_ref(), &mut l.applied);
                     return Ok(l.instance.clone());
                 }
             }
@@ -147,17 +164,15 @@ impl Host {
                     .push(format!("{}: stato non ripristinato ({e})", instance.info().name));
             }
         }
-        for (k, v) in &inst.params {
-            if let Some(pid) = parse_param_key(k) {
-                instance.set_param_normalized(pid, (*v as f64).clamp(0.0, 1.0));
-            }
-        }
+        let mut applied = HashMap::new();
+        apply_params(inst, instance.as_ref(), &mut applied);
         self.live.lock().insert(
             id,
             Live {
                 kind: inst.kind.clone(),
                 instance: instance.clone(),
                 sample_rate,
+                applied,
             },
         );
         Ok(instance)
@@ -293,7 +308,17 @@ mod tests {
         let mut pi2 = PluginInstance::new("vst3:/fake.vst3::00");
         pi2.instance_id = Some("ext2".into());
         pi2.params.insert("p0".into(), 0.75);
-        assert_eq!(host.get_or_create(&pi2, 48_000.0).unwrap().param_normalized(0), 0.75);
+        let i2 = host.get_or_create(&pi2, 48_000.0).unwrap();
+        assert_eq!(i2.param_normalized(0), 0.75);
+        // Modifica dall'interfaccia del plugin: una ricompilazione non la sovrascrive...
+        i2.set_param_normalized(0, 0.1);
+        host.get_or_create(&pi2, 48_000.0).unwrap();
+        assert_eq!(i2.param_normalized(0), 0.1);
+        // ...ma un nuovo valore nel progetto (es. undo) sì.
+        pi2.params.insert("p0".into(), 0.5);
+        host.get_or_create(&pi2, 48_000.0).unwrap();
+        assert_eq!(i2.param_normalized(0), 0.5);
+        drop(i2);
         assert_eq!(host.collect_states().len(), 2);
         host.retain(&["ext2".into()]);
         assert_eq!(host.live_ids(), vec!["ext2".to_string()]);

@@ -71,6 +71,8 @@ enum DropAction {
     OpenProject,
     /// Campione audio: nuovo canale Sampler.
     LoadSample,
+    /// Plugin VST3/CLAP: scansione e aggiunta (strumento → canale, effetto → insert).
+    AddPlugin,
     Unsupported,
 }
 
@@ -84,6 +86,7 @@ fn drop_action(path: &Path) -> DropAction {
     match ext.as_str() {
         "mfc" | "flp" | "mid" | "midi" => DropAction::OpenProject,
         "wav" => DropAction::LoadSample,
+        "vst3" | "clap" => DropAction::AddPlugin,
         _ => DropAction::Unsupported,
     }
 }
@@ -244,6 +247,7 @@ impl StudioApp {
             ctx.request_repaint();
         }
         self.studio.pump_live();
+        self.studio.tick_plugins();
         // Le azioni su file sono fuori dal lock dell'input: i dialoghi nativi sono bloccanti.
         if do_open {
             self.request_file(FileAction::Open);
@@ -707,6 +711,15 @@ impl StudioApp {
             match drop_action(&path) {
                 DropAction::OpenProject => self.run_file_action(FileAction::Open, path),
                 DropAction::LoadSample => self.add_sample_channel(&path),
+                DropAction::AddPlugin => match self.studio.host.scan_file(&path) {
+                    Ok(found) if !found.is_empty() => {
+                        crate::plugins::save_catalog(&self.studio.host);
+                        views::browser::add_external(&mut self.studio, &found[0]);
+                        self.studio.status = format!("Plugin aggiunto: {}", found[0].name);
+                    }
+                    Ok(_) => self.studio.status = "Nessun plugin nel file".into(),
+                    Err(e) => self.studio.status = format!("Plugin non caricabile: {e}"),
+                },
                 DropAction::Unsupported => {
                     let name = path
                         .file_name()
@@ -841,6 +854,8 @@ mod tests {
         assert_eq!(drop_action(Path::new("x.mid")), DropAction::OpenProject);
         assert_eq!(drop_action(Path::new("x.midi")), DropAction::OpenProject);
         assert_eq!(drop_action(Path::new("kick.WAV")), DropAction::LoadSample);
+        assert_eq!(drop_action(Path::new("Synth.vst3")), DropAction::AddPlugin);
+        assert_eq!(drop_action(Path::new("/p/Delay.CLAP")), DropAction::AddPlugin);
         assert_eq!(drop_action(Path::new("nota.txt")), DropAction::Unsupported);
         assert_eq!(drop_action(Path::new("senza_estensione")), DropAction::Unsupported);
     }

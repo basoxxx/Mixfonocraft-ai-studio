@@ -8,6 +8,9 @@ use mfc_engine::backend::null::NullBackend;
 use mfc_engine::{Engine, EngineHandle, PlayMode};
 
 use crate::input::{LiveEvent, LiveInput};
+use crate::plugin_window::PluginWindow;
+use std::collections::HashMap;
+use std::sync::Arc;
 
 /// Vista principale nell'area centrale.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -69,6 +72,10 @@ pub struct Studio {
     pub audible: bool,
     /// Configurazione audio scelta dall'utente (applicata da [`Studio::restart_audio`]).
     pub audio_config: AudioConfig,
+    /// Host dei plugin VST3/CLAP (registrato nel motore).
+    pub host: Arc<mfc_host::Host>,
+    /// Finestre aperte con l'interfaccia originale dei plugin, per `instance_id`.
+    pub plugin_windows: HashMap<String, PluginWindow>,
     /// Ingresso live: tastiera del computer e MIDI.
     pub live: LiveInput,
     /// Registrazione delle note live nel pattern corrente (durante la riproduzione).
@@ -80,6 +87,10 @@ pub struct Studio {
 impl Studio {
     pub fn new(project: Project) -> Self {
         let audio_config: AudioConfig = Default::default();
+        // L'host va registrato prima di compilare il progetto nel motore.
+        let host = Arc::new(mfc_host::Host::new());
+        crate::plugins::load_catalog(&host);
+        mfc_plugins::set_external_host(Some(host.clone() as Arc<dyn mfc_plugins::ExternalHost>));
         let (handle, backend, err) = start_engine(&project, &audio_config);
         let audible = backend.is_device();
         let selected_channel = project.channels.first().map(|c| c.id);
@@ -101,6 +112,8 @@ impl Studio {
                     None => "Audio non disponibile: transport silenzioso".into(),
                 }
             },
+            host,
+            plugin_windows: HashMap::new(),
             live: LiveInput::new(handle.clone()),
             recording: false,
             engine: handle,
@@ -147,6 +160,14 @@ impl Studio {
 
     /// Esegue un comando con undo; aggiorna motore e stato.
     pub fn exec(&mut self, cmd: Command) -> Option<Outcome> {
+        // Prima di rimuovere un plugin esterno se ne salva lo stato nel progetto,
+        // così l'undo lo ripristina com'era.
+        if matches!(
+            cmd,
+            Command::RemoveChannel { .. } | Command::RemoveEffect { .. } | Command::Batch { .. }
+        ) {
+            self.sync_plugin_states();
+        }
         match self.history.execute(&mut self.project, &cmd) {
             Ok(o) => {
                 self.dirty = true;
@@ -185,6 +206,45 @@ impl Studio {
         }
         self.engine.load_project(&self.project);
         self.apply_mode();
+        let ids = crate::plugins::external_ids(&self.project);
+        self.plugin_windows.retain(|id, _| ids.contains(id));
+        self.host.retain(&ids);
+    }
+
+    /// Copia nel progetto lo stato dei plugin esterni (prima di salvare/rimuovere).
+    pub fn sync_plugin_states(&mut self) {
+        let errors = crate::plugins::sync_states(&self.host, &mut self.project);
+        if !errors.is_empty() {
+            self.status = format!("Stato plugin non salvato: {}", errors.join("; "));
+        }
+    }
+
+    /// Lavoro periodico del thread UI: idle dei plugin, finestre native, errori dell'host.
+    pub fn tick_plugins(&mut self) {
+        self.host.idle();
+        self.plugin_windows.retain(|_, w| w.poll());
+        let errors = self.host.take_errors();
+        if !errors.is_empty() {
+            self.status = format!("Plugin: {}", errors.join("; "));
+        }
+    }
+
+    /// Apre (o porta in primo piano) l'interfaccia originale di un plugin esterno.
+    pub fn open_plugin_window(&mut self, instance_id: &str, title: &str) {
+        if let Some(w) = self.plugin_windows.get(instance_id) {
+            w.focus();
+            return;
+        }
+        let Some(inst) = self.host.instance(instance_id) else {
+            self.status = "Plugin non caricato".into();
+            return;
+        };
+        match PluginWindow::open(inst, title) {
+            Ok(w) => {
+                self.plugin_windows.insert(instance_id.to_string(), w);
+            }
+            Err(e) => self.status = format!("Interfaccia del plugin: {e}"),
+        }
     }
 
     /// Applica la modalità PAT/SONG al motore.
@@ -290,6 +350,9 @@ impl Studio {
         self.dirty = false;
         self.selected_channel = self.project.channels.first().map(|c| c.id);
         self.plugin_editor = None;
+        // Gli id delle istanze sono per-progetto: niente riuso tra progetti diversi.
+        self.plugin_windows.clear();
+        self.host.retain(&[]);
         self.after_change();
     }
 
@@ -340,6 +403,7 @@ impl Studio {
             self.status = format!("Esportato FLP {}", path.display());
             return Ok(());
         }
+        self.sync_plugin_states();
         let txt = self.project.to_json().map_err(|e| e.to_string())?;
         std::fs::write(path, txt).map_err(|e| e.to_string())?;
         self.path = Some(path.to_path_buf());
@@ -354,8 +418,12 @@ impl Studio {
             pattern: if self.song_mode { None } else { self.current_pattern() },
             ..Default::default()
         };
-        let out = mfc_engine::render_to_file(&self.project, path, &opts, mfc_engine::WavFormat::Int24)
-            .map_err(|e| e.to_string())?;
+        // Istanze separate da quelle del motore live, ripartendo dal loro stato attuale.
+        self.sync_plugin_states();
+        let project = crate::plugins::detached_copy(&self.project);
+        let res = mfc_engine::render_to_file(&project, path, &opts, mfc_engine::WavFormat::Int24);
+        self.host.retain(&crate::plugins::external_ids(&self.project));
+        let out = res.map_err(|e| e.to_string())?;
         self.status = format!("Render {:.1} s → {}", out.mix.seconds(), path.display());
         Ok(())
     }
