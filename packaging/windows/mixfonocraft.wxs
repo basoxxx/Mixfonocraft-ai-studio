@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Pacchetto MSI di Mixfonocraft AI Studio (WiX v5).
+
+  Compilazione (dalla radice del repository, dopo `dotnet tool install -g wix, versione 5.0.2`):
+    wix build packaging/windows/mixfonocraft.wxs -arch x64 -d Version=0.1.0 -d SourceDir="C:\percorso\stage" -o dist/Mixfonocraft-0.1.0-windows-x86_64.msi
+
+  SourceDir deve contenere: mixfonocraft-studio.exe, mixfonocraft.exe, README.md,
+  examples\demo.mfc, examples\mcp\beat_session.jsonl.
+
+  Installazione per tutto il computer (perMachine), senza finestra di scelta: l'MSI
+  installa in Program Files. Per l'installazione per utente usare l'EXE (Setup.exe).
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="Mixfonocraft AI Studio"
+           Manufacturer="Mixfonocraft"
+           Version="$(Version)"
+           UpgradeCode="42EB022A-C206-4D81-8104-B6101F8729A2"
+           Language="1040"
+           Scope="perMachine"
+           InstallerVersion="500"
+           Compressed="yes">
+
+    <SummaryInformation Description="Mixfonocraft AI Studio: DAW in Rust con server MCP" />
+
+    <MajorUpgrade DowngradeErrorMessage="È già installata una versione più recente di Mixfonocraft AI Studio." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Icon Id="AppIcon.ico" SourceFile="$(sys.SOURCEFILEDIR)..\..\assets\icon\icon.ico" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon.ico" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/basoxxx/Mixfonocraft-ai-studio" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/basoxxx/Mixfonocraft-ai-studio" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="Mixfonocraft AI Studio">
+
+        <Component Id="CmpStudio" Guid="*">
+          <File Id="StudioExe" Source="$(SourceDir)\mixfonocraft-studio.exe" KeyPath="yes" />
+          <!-- Associazione del formato .mfc (progetto nativo, JSON) all'app; l'icona
+               è presa dalle risorse dell'eseguibile (Icon = Id di un File). -->
+          <ProgId Id="MixfonocraftProject" Description="Progetto Mixfonocraft" Icon="StudioExe" IconIndex="0">
+            <Extension Id="mfc" ContentType="application/json">
+              <Verb Id="open" Command="Apri" TargetFile="StudioExe" Argument="&quot;%1&quot;" />
+            </Extension>
+          </ProgId>
+        </Component>
+
+        <Component Id="CmpCli" Guid="*">
+          <File Id="CliExe" Source="$(SourceDir)\mixfonocraft.exe" KeyPath="yes" />
+        </Component>
+
+        <Component Id="CmpCliPath" Guid="*">
+          <Environment Id="PathSystemMixfonocraft" Name="PATH" Value="[INSTALLFOLDER]" Action="set" Part="last" System="yes" />
+          <RegistryValue Root="HKLM" Key="Software\Mixfonocraft\AI Studio" Name="CliPath"
+                         Type="integer" Value="1" KeyPath="yes" />
+        </Component>
+
+        <Component Id="CmpReadme" Guid="*">
+          <File Id="ReadmeMd" Source="$(SourceDir)\README.md" KeyPath="yes" />
+        </Component>
+
+        <Directory Id="ExamplesDir" Name="examples">
+          <Component Id="CmpExampleDemo" Guid="*">
+            <File Id="ExampleDemo" Source="$(SourceDir)\examples\demo.mfc" KeyPath="yes" />
+          </Component>
+          <Directory Id="ExamplesMcpDir" Name="mcp">
+            <Component Id="CmpExampleBeat" Guid="*">
+              <File Id="ExampleBeat" Source="$(SourceDir)\examples\mcp\beat_session.jsonl" KeyPath="yes" />
+            </Component>
+          </Directory>
+        </Directory>
+
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="AppMenuFolder" Name="Mixfonocraft AI Studio">
+        <Component Id="CmpStartMenu" Guid="*">
+          <Shortcut Id="StartMenuStudio"
+                    Name="Mixfonocraft AI Studio"
+                    Description="Apri Mixfonocraft AI Studio"
+                    Target="[#StudioExe]"
+                    WorkingDirectory="INSTALLFOLDER"
+                    Icon="AppIcon.ico" />
+          <!-- Chiave di registro come KeyPath: richiesta per le scorciatoie in un pacchetto perMachine. -->
+          <RegistryValue Root="HKLM" Key="Software\Mixfonocraft\AI Studio" Name="StartMenuShortcut"
+                         Type="integer" Value="1" KeyPath="yes" />
+          <RemoveFolder Id="RemoveAppMenuFolder" On="uninstall" />
+        </Component>
+      </Directory>
+    </StandardDirectory>
+
+    <!-- Feature principale: applicazione, CLI, documentazione ed esempi. -->
+    <Feature Id="MainFeature" Title="Mixfonocraft AI Studio" Level="1" Description="Applicazione, CLI e documentazione">
+      <ComponentRef Id="CmpStudio" />
+      <ComponentRef Id="CmpCli" />
+      <ComponentRef Id="CmpReadme" />
+      <ComponentRef Id="CmpExampleDemo" />
+      <ComponentRef Id="CmpExampleBeat" />
+      <ComponentRef Id="CmpStartMenu" />
+    </Feature>
+
+    <!-- Feature opzionale: cartella d'installazione nel PATH di sistema (per `mixfonocraft` da terminale). -->
+    <Feature Id="CliPathFeature" Title="Aggiungi la CLI 'mixfonocraft' al PATH" Level="1" Description="Permette di lanciare mixfonocraft da terminale e di usare il server MCP">
+      <ComponentRef Id="CmpCliPath" />
+    </Feature>
+
+  </Package>
+</Wix>

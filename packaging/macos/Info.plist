@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>it</string>
     <key>CFBundleName</key>
     <string>Mixfonocraft</string>
     <key>CFBundleDisplayName</key>
@@ -9,26 +11,87 @@
     <key>CFBundleIdentifier</key>
     <string>com.mixfonocraft.studio</string>
     <key>CFBundleExecutable</key>
-    <string>mixfonocraft</string>
+    <string>mixfonocraft-studio</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
     <key>CFBundleVersion</key>
     <string>__VERSION__</string>
     <key>CFBundleShortVersionString</key>
     <string>__VERSION__</string>
     <key>LSMinimumSystemVersion</key>
     <string>11.0</string>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.music</string>
     <key>NSHighResolutionCapable</key>
     <true/>
+    <key>NSHumanReadableCopyright</key>
+    <string>MIT OR Apache-2.0</string>
     <key>CFBundleDocumentTypes</key>
     <array>
         <dict>
             <key>CFBundleTypeName</key>
             <string>Progetto Mixfonocraft</string>
             <key>CFBundleTypeExtensions</key>
-            <array><string>mfc</string><string>flp</string><string>mid</string></array>
+            <array>
+                <string>mfc</string>
+            </array>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>com.mixfonocraft.project</string>
+            </array>
             <key>CFBundleTypeRole</key>
             <string>Editor</string>
+            <key>LSHandlerRank</key>
+            <string>Owner</string>
+        </dict>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>Progetto FL Studio</string>
+            <key>CFBundleTypeExtensions</key>
+            <array>
+                <string>flp</string>
+            </array>
+            <key>CFBundleTypeRole</key>
+            <string>Editor</string>
+            <key>LSHandlerRank</key>
+            <string>Alternate</string>
+        </dict>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>File MIDI</string>
+            <key>CFBundleTypeExtensions</key>
+            <array>
+                <string>mid</string>
+            </array>
+            <key>CFBundleTypeRole</key>
+            <string>Editor</string>
+            <key>LSHandlerRank</key>
+            <string>Alternate</string>
+        </dict>
+    </array>
+    <key>UTExportedTypeDeclarations</key>
+    <array>
+        <dict>
+            <key>UTTypeIdentifier</key>
+            <string>com.mixfonocraft.project</string>
+            <key>UTTypeDescription</key>
+            <string>Progetto Mixfonocraft</string>
+            <key>UTTypeConformsTo</key>
+            <array>
+                <string>public.json</string>
+                <string>public.data</string>
+            </array>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key>
+                <array>
+                    <string>mfc</string>
+                </array>
+            </dict>
         </dict>
     </array>
 </dict>

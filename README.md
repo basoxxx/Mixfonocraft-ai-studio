@@ -11,6 +11,17 @@ software Image-Line. Il formato `.flp` è stato mappato solo da documentazione p
 community (PyFLP, Monad.FLParser e note sul formato), senza decompilazione. Mixfonocraft non è
 affiliato né approvato da Image-Line; FL Studio è un marchio dei rispettivi titolari.
 
+![Channel Rack](docs/screenshots/1_channel_rack.png)
+
+| Piano Roll | Playlist |
+|---|---|
+| ![Piano Roll](docs/screenshots/2_piano_roll.png) | ![Playlist](docs/screenshots/3_playlist.png) |
+| **Mixer** | **Editor plugin** |
+| ![Mixer](docs/screenshots/4_mixer.png) | ![Editor plugin](docs/screenshots/5_plugin_editor.png) |
+
+> Gli screenshot sono generati senza GPU dal rasterizzatore software incluso:
+> `cargo run -p mfc-gui --release --features snapshot --example screenshot -- examples/demo.mfc docs/screenshots`
+
 ## Funzionalità
 
 - **Channel Rack** con generatori nativi, canali sampler e audio clip, layer, pitch, pan e
@@ -49,22 +60,42 @@ I pacchetti pronti vengono generati dal workflow [`release.yml`](.github/workflo
 e allegati alle [GitHub Release](../../releases) a ogni tag `v*` (per le pull request sono
 disponibili come artifact della run):
 
-| Piattaforma | File |
+| Piattaforma | File da scaricare |
 |---|---|
-| macOS Apple Silicon (M1/M2/M3/M4) | `Mixfonocraft-<ver>-macos-arm64.dmg` / `.zip` |
-| macOS Intel | `Mixfonocraft-<ver>-macos-x86_64.dmg` / `.zip` |
-| Windows 10/11 x64 | `Mixfonocraft-<ver>-windows-x86_64.zip` |
+| macOS Apple Silicon (M1/M2/M3/M4) | `Mixfonocraft-<ver>-macos-arm64.dmg` |
+| macOS Intel | `Mixfonocraft-<ver>-macos-x86_64.dmg` |
+| Windows 10/11 x64, installer | `Mixfonocraft-<ver>-windows-x86_64-setup.exe` |
+| Windows 10/11 x64, MSI (per tutto il computer) | `Mixfonocraft-<ver>-windows-x86_64.msi` |
+| Windows 10/11 x64, portatile (senza installazione) | `Mixfonocraft-<ver>-windows-x86_64-portable.zip` |
 
-Ogni pacchetto contiene l'app (doppio click = GUI), l'eseguibile `mixfonocraft` per CLI e
-server MCP, il README e gli esempi. L'audio realtime è attivo (CoreAudio / WASAPI).
+Ogni pacchetto contiene l'app Mixfonocraft AI Studio (doppio click = GUI, senza finestra console)
+e l'eseguibile `mixfonocraft` per CLI e server MCP. L'audio realtime è attivo (CoreAudio / WASAPI).
 
-**macOS:** l'app è firmata solo ad-hoc (nessun certificato Apple Developer), quindi al primo
-avvio Gatekeeper la blocca. Aprila con click destro → *Apri*, oppure:
-`xattr -dr com.apple.quarantine /Applications/Mixfonocraft.app`.
+**macOS**
 
-**Windows:** SmartScreen può mostrare "PC protetto da Windows" → *Ulteriori informazioni* →
-*Esegui comunque*. Lanciato senza argomenti, `mixfonocraft.exe` apre la GUI (resta visibile
-anche una finestra console).
+1. Apri il `.dmg` e trascina **Mixfonocraft AI Studio** nella cartella **Applicazioni**.
+2. Al primo avvio: l'app è firmata solo ad-hoc (nessun certificato Apple Developer), quindi
+   Gatekeeper la blocca. Apri la cartella Applicazioni, fai click destro su *Mixfonocraft* →
+   *Apri* → *Apri*. In alternativa, da terminale:
+   `xattr -dr com.apple.quarantine /Applications/Mixfonocraft.app`
+
+**Windows**
+
+- **Setup.exe**: doppio click e segui la procedura. Puoi scegliere l'installazione per il solo
+  utente o per tutto il computer, e se aggiungere la CLI al PATH e creare l'icona sul desktop.
+  I file `.mfc` si aprono con Mixfonocraft AI Studio.
+- **MSI**: installa in `Program Files` per tutto il computer (per l'installazione per utente usa Setup.exe).
+- **Portatile**: estrai lo zip ed esegui `mixfonocraft-studio.exe`.
+- SmartScreen può mostrare "PC protetto da Windows" → *Ulteriori informazioni* →
+  *Esegui comunque* (il software non è firmato con certificato di codice).
+
+**CLI e server MCP**
+
+- macOS: `/Applications/Mixfonocraft.app/Contents/MacOS/mixfonocraft mcp --workdir /percorso/progetti`
+- Windows: `mixfonocraft.exe` nella cartella di installazione (`C:\Program Files\Mixfonocraft AI Studio\`
+  per l'MSI e per Setup.exe con installazione per tutto il computer,
+  `%LOCALAPPDATA%\Programs\Mixfonocraft AI Studio\` per l'installazione per utente).
+  Se nel PATH, basta `mixfonocraft` da terminale. Anche `mixfonocraft gui` apre la GUI.
 
 Per pubblicare una nuova versione: aggiornare `version` in `Cargo.toml`, poi
 `git tag v0.1.0 && git push origin v0.1.0`, oppure avviare manualmente il workflow *Release* (Actions → Release → Run workflow) indicando il tag.

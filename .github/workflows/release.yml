@@ -1,7 +1,12 @@
 name: Release
 
 # Build per macOS (Intel e Apple Silicon) e Windows.
-# - Pull request e push sul branch: gli eseguibili vengono caricati come artifact della run.
+# Ogni target produce entrambi i binari: `mixfonocraft-studio` (GUI, mfc-app) e
+# `mixfonocraft` (CLI e server MCP, mfc-cli).
+# - macOS: Mixfonocraft-<ver>-macos-<arch>.dmg (app trascinabile in Applicazioni).
+# - Windows: Mixfonocraft-<ver>-windows-x86_64-setup.exe (Inno Setup),
+#   Mixfonocraft-<ver>-windows-x86_64.msi (WiX) e la versione portatile .zip.
+# - Pull request e push sul branch: i pacchetti vengono caricati come artifact della run.
 # - Tag `v*` (es. v0.1.0): viene creata la GitHub Release con i pacchetti allegati.
 # - Avvio manuale con input `tag`: crea tag e Release sul commit selezionato
 #   (utile quando il push dei tag non è disponibile).
@@ -56,7 +61,7 @@ jobs:
           key: ${{ matrix.target }}
 
       - name: Build
-        run: cargo build --release --locked -p mfc-cli --features realtime --target ${{ matrix.target }}
+        run: cargo build --release --locked -p mfc-app -p mfc-cli --features mfc-cli/realtime --target ${{ matrix.target }}
         env:
           MACOSX_DEPLOYMENT_TARGET: "11.0"
 
@@ -65,59 +70,182 @@ jobs:
         shell: bash
         run: echo "version=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)" >> "$GITHUB_OUTPUT"
 
+      - name: Verifica binari
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXT=${{ runner.os == 'Windows' && '.exe' || '' }}
+          REL=target/${{ matrix.target }}/release
+          test -s "$REL/mixfonocraft-studio$EXT"
+          test -s "$REL/mixfonocraft$EXT"
+          ls -lh "$REL/mixfonocraft-studio$EXT" "$REL/mixfonocraft$EXT"
+
       - name: Smoke test (demo + render)
         if: matrix.native
         shell: bash
         run: |
-          BIN=target/${{ matrix.target }}/release/mixfonocraft
+          set -euo pipefail
+          EXT=${{ runner.os == 'Windows' && '.exe' || '' }}
+          ROOT="$(pwd)"
+          BIN="$ROOT/target/${{ matrix.target }}/release/mixfonocraft$EXT"
+          test -s "$ROOT/target/${{ matrix.target }}/release/mixfonocraft-studio$EXT"
+          cd "$(mktemp -d)"
           "$BIN" --version
           "$BIN" demo smoke.mfc --render smoke.wav
           "$BIN" info smoke.mfc
           "$BIN" convert smoke.mfc smoke.flp
           test -s smoke.wav && test -s smoke.flp
 
-      - name: Pacchetto macOS (.app, .dmg, .zip)
+      # ---------------------------------------------------------------- macOS
+      - name: Pacchetto macOS (.app e .dmg)
         if: runner.os == 'macOS'
         shell: bash
         run: |
           set -euo pipefail
           VER=${{ steps.ver.outputs.version }}
           NAME=Mixfonocraft-$VER-${{ matrix.slug }}
-          STAGE=dist/$NAME
-          APP=$STAGE/Mixfonocraft.app
-          mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-          cp target/${{ matrix.target }}/release/mixfonocraft "$APP/Contents/MacOS/"
+          REL=target/${{ matrix.target }}/release
+          STAGE="$RUNNER_TEMP/stage"
+          APP="$STAGE/Mixfonocraft.app"
+          rm -rf "$STAGE"
+          mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" dist
+          cp "$REL/mixfonocraft-studio" "$APP/Contents/MacOS/"
+          cp "$REL/mixfonocraft" "$APP/Contents/MacOS/"
+          chmod +x "$APP/Contents/MacOS/mixfonocraft-studio" "$APP/Contents/MacOS/mixfonocraft"
+          cp assets/icon/icon.icns "$APP/Contents/Resources/AppIcon.icns"
           sed "s/__VERSION__/$VER/g" packaging/macos/Info.plist > "$APP/Contents/Info.plist"
+          plutil -lint "$APP/Contents/Info.plist"
           # Firma ad-hoc (nessun certificato Apple): necessaria su Apple Silicon.
           codesign --force --deep --sign - "$APP"
-          cp target/${{ matrix.target }}/release/mixfonocraft "$STAGE/mixfonocraft"
-          cp README.md "$STAGE/"
-          cp -R examples "$STAGE/"
-          lipo -info "$APP/Contents/MacOS/mixfonocraft"
-          hdiutil create -volname "Mixfonocraft" -srcfolder "$STAGE" -ov -format UDZO "dist/$NAME.dmg"
-          (cd dist && ditto -c -k --keepParent "$NAME" "$NAME.zip")
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          lipo -info "$APP/Contents/MacOS/mixfonocraft-studio" "$APP/Contents/MacOS/mixfonocraft"
+
+          # dmgbuild in un virtualenv: il Python di sistema del runner può essere "externally managed".
+          python3 -m venv "$RUNNER_TEMP/dmgvenv"
+          "$RUNNER_TEMP/dmgvenv/bin/pip" install --quiet --upgrade pip dmgbuild
+
+          DMG="$PWD/dist/$NAME.dmg"
+          rm -f "$DMG"
+          "$RUNNER_TEMP/dmgvenv/bin/dmgbuild" -s "$PWD/packaging/macos/dmg_settings.py" \
+            -D app_path="$APP" \
+            -D volume_icon="$PWD/assets/icon/icon.icns" \
+            -D background="$PWD/assets/dmg/background.png" \
+            "Mixfonocraft AI Studio" "$DMG"
           ls -lh dist
 
-      - name: Pacchetto Windows (.zip)
+      - name: Verifica DMG (montaggio read-only)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          VER=${{ steps.ver.outputs.version }}
+          DMG="$PWD/dist/Mixfonocraft-$VER-${{ matrix.slug }}.dmg"
+          test -s "$DMG"
+          MNT="$RUNNER_TEMP/dmg-mount"
+          mkdir -p "$MNT"
+          hdiutil attach -readonly -nobrowse -noautoopen -mountpoint "$MNT" "$DMG"
+          set +e
+          RC=0
+          test -x "$MNT/Mixfonocraft.app/Contents/MacOS/mixfonocraft-studio" || RC=1
+          test -x "$MNT/Mixfonocraft.app/Contents/MacOS/mixfonocraft" || RC=1
+          test -L "$MNT/Applications" || RC=1
+          ls -la "$MNT"
+          hdiutil detach "$MNT" || hdiutil detach -force "$MNT"
+          exit $RC
+
+      # -------------------------------------------------------------- Windows
+      - name: Installa Inno Setup e WiX
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
+          if (-not (Test-Path "C:\Program Files (x86)\Inno Setup 6\ISCC.exe")) {
+            choco install innosetup -y --no-progress
+          }
+          if (-not (Test-Path "C:\Program Files (x86)\Inno Setup 6\ISCC.exe")) {
+            throw "ISCC.exe non trovato dopo l'installazione di Inno Setup"
+          }
+          if (-not (Get-Command wix -ErrorAction SilentlyContinue)) {
+            dotnet tool install --global wix --version 5.0.2
+          }
+          try { wix eula accept wix7 | Out-Null } catch { }
+          wix --version
+
+      - name: Pacchetto Windows (setup, msi, portable)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
           $ver = "${{ steps.ver.outputs.version }}"
-          $name = "Mixfonocraft-$ver-${{ matrix.slug }}"
-          $stage = "dist/$name"
+          $rel = "target/${{ matrix.target }}/release"
+
+          # Cartella di staging comune a Inno Setup, WiX e allo zip portatile.
+          $stage = Join-Path $env:RUNNER_TEMP "stage"
+          Remove-Item -Recurse -Force $stage -ErrorAction SilentlyContinue
           New-Item -ItemType Directory -Force -Path $stage | Out-Null
-          Copy-Item "target/${{ matrix.target }}/release/mixfonocraft.exe" $stage
+          Copy-Item "$rel/mixfonocraft-studio.exe" $stage
+          Copy-Item "$rel/mixfonocraft.exe" $stage
           Copy-Item README.md $stage
           Copy-Item -Recurse examples $stage
-          Compress-Archive -Path $stage -DestinationPath "dist/$name.zip" -Force
-          Get-ChildItem dist
+          $stageAbs = (Resolve-Path $stage).Path
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
 
+          # 1) Installer EXE (Inno Setup).
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          & $iscc "/DAppVersion=$ver" "/DSourceDir=$stageAbs" "packaging\windows\mixfonocraft.iss"
+          if ($LASTEXITCODE -ne 0) { throw "ISCC ha restituito $LASTEXITCODE" }
+
+          # 2) Pacchetto MSI (WiX).
+          wix build packaging/windows/mixfonocraft.wxs -arch x64 `
+            -d "Version=$ver" -d "SourceDir=$stageAbs" `
+            -o "dist/Mixfonocraft-$ver-windows-x86_64.msi"
+          if ($LASTEXITCODE -ne 0) { throw "wix build ha restituito $LASTEXITCODE" }
+
+          # 3) Versione portatile (zip con cartella di primo livello).
+          $portable = Join-Path $env:RUNNER_TEMP "portable\Mixfonocraft-$ver-windows-x86_64-portable"
+          Remove-Item -Recurse -Force (Split-Path $portable) -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $portable | Out-Null
+          Copy-Item "$stage\*" $portable -Recurse
+          Compress-Archive -Path $portable -DestinationPath "dist/Mixfonocraft-$ver-windows-x86_64-portable.zip" -Force
+
+          Get-ChildItem dist | Format-Table Name, Length
+
+      - name: Verifica installer Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $ver = "${{ steps.ver.outputs.version }}"
+          $setup = "dist/Mixfonocraft-$ver-windows-x86_64-setup.exe"
+          $msi = "dist/Mixfonocraft-$ver-windows-x86_64.msi"
+          $zip = "dist/Mixfonocraft-$ver-windows-x86_64-portable.zip"
+          foreach ($f in @($setup, $msi, $zip)) {
+            if (-not (Test-Path $f) -or (Get-Item $f).Length -eq 0) { throw "Pacchetto mancante o vuoto: $f" }
+          }
+
+          # Installazione silenziosa per utente in una cartella temporanea, poi disinstallazione.
+          $target = Join-Path $env:RUNNER_TEMP "install-test"
+          $log = Join-Path $env:RUNNER_TEMP "setup-install.log"
+          $p = Start-Process -FilePath (Resolve-Path $setup).Path -ArgumentList @(
+            "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CURRENTUSER",
+            "/DIR=$target", "/LOG=$log") -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Installazione silenziosa fallita (codice $($p.ExitCode))" }
+          if (-not (Test-Path "$target\mixfonocraft-studio.exe")) { throw "mixfonocraft-studio.exe non installato" }
+          if (-not (Test-Path "$target\mixfonocraft.exe")) { throw "mixfonocraft.exe non installato" }
+          & "$target\mixfonocraft.exe" --version
+
+          $u = Start-Process -FilePath "$target\unins000.exe" -ArgumentList @(
+            "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART") -Wait -PassThru
+          if ($u.ExitCode -ne 0) { throw "Disinstallazione fallita (codice $($u.ExitCode))" }
+
+      # ------------------------------------------------------------- Artifact
       - uses: actions/upload-artifact@v4
         with:
           name: Mixfonocraft-${{ matrix.slug }}
           path: |
-            dist/*.zip
             dist/*.dmg
+            dist/*.exe
+            dist/*.msi
+            dist/*.zip
           if-no-files-found: error
 
   release:

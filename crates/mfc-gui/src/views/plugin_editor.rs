@@ -1,13 +1,15 @@
 //! Editor generico dei parametri plugin: una finestra con un controllo per parametro,
 //! campione (sampler / audio clip), reset e mini tastiera di prova per i canali.
 
-use egui::{vec2, Context, Id, Ui};
+use egui::{pos2, vec2, Align2, Color32, Context, FontId, Id, Rect, RichText, Sense, Stroke, Ui};
 use mfc_core::{ChannelId, ChannelKind, Command, PluginInstance, Project};
 use mfc_plugins::{descriptor, ParamDesc, PluginDescriptor};
 
 use crate::state::{PluginTarget, Studio};
+use crate::theme::{self, pal};
 use crate::views::channel_rack::{live, settle};
 use crate::views::key_name;
+use crate::views::widgets::{self, Icon};
 
 /// Velocity della tastiera di prova.
 const TEST_VELOCITY: f32 = 0.8;
@@ -90,56 +92,80 @@ pub fn show(ctx: &Context, studio: &mut Studio) {
             .unwrap_or_else(|| resolved.inst.kind.clone()),
     };
     let mut open = true;
-    egui::Window::new(format!("{} · {plugin_name}", resolved.title))
+    egui::Window::new(RichText::new(format!("{plugin_name}  ·  {}", resolved.title)).font(theme::bold_font(13.0)))
+        .id(Id::new("plugin_editor_window"))
         .open(&mut open)
         .resizable(true)
-        .default_width(440.0)
-        .show(ctx, |ui| body(ui, studio, target, &resolved));
+        .collapsible(false)
+        .default_width(520.0)
+        .default_pos(ctx.content_rect().center() - vec2(260.0, 220.0))
+        .show(ctx, |ui| body(ui, studio, target, &resolved, &plugin_name));
     if !open {
         studio.plugin_editor = None;
     }
 }
 
-fn body(ui: &mut Ui, studio: &mut Studio, target: PluginTarget, r: &Resolved) {
+fn body(ui: &mut Ui, studio: &mut Studio, target: PluginTarget, r: &Resolved, plugin_name: &str) {
     let inst = &r.inst;
     let Some(desc) = descriptor(&inst.kind) else {
-        ui.label(format!(
-            "Plugin esterno non supportato: {}",
-            inst.foreign_name.as_deref().unwrap_or(&inst.kind)
-        ));
-        ui.label(format!(
-            "Stato opaco preservato: {} byte",
-            inst.opaque_state.as_ref().map_or(0, Vec::len)
-        ));
+        ui.label(RichText::new(format!("Plugin esterno non supportato: {plugin_name}")).color(pal::YELLOW));
+        ui.label(
+            RichText::new(format!(
+                "Lo stato originale ({} byte) è preservato e verrà riscritto all'export .flp.",
+                inst.opaque_state.as_ref().map_or(0, Vec::len)
+            ))
+            .color(pal::TEXT_DIM),
+        );
         return;
     };
-    ui.weak(desc.description);
+    // Intestazione del plugin.
+    ui.horizontal(|ui| {
+        let (ir, _) = ui.allocate_exact_size(vec2(34.0, 34.0), Sense::hover());
+        ui.painter().rect_filled(ir, 6.0, pal::BG_INSET);
+        let icon = if desc.role == mfc_plugins::PluginRole::Generator {
+            Icon::Wave
+        } else {
+            Icon::Plugin
+        };
+        widgets::paint_icon(ui.painter(), ir.shrink(8.0), icon, pal::ACCENT);
+        ui.vertical(|ui| {
+            ui.spacing_mut().item_spacing.y = 1.0;
+            ui.label(RichText::new(desc.name).font(theme::bold_font(15.0)).color(pal::TEXT));
+            ui.label(RichText::new(desc.description).size(11.0).color(pal::TEXT_DIM));
+        });
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            if ui
+                .button("Reset")
+                .on_hover_text("Ripristina tutti i parametri ai valori di default")
+                .clicked()
+            {
+                let cmds: Vec<Command> = desc
+                    .params
+                    .iter()
+                    .map(|p| param_cmd(target, p.name, p.default))
+                    .collect();
+                studio.exec(Command::Batch { commands: cmds });
+            }
+        });
+    });
+    ui.add_space(6.0);
 
     if let Some((channel, kind, _)) = r.channel {
         if matches!(kind, ChannelKind::Sampler | ChannelKind::AudioClip) {
             sample_row(ui, studio, channel, inst);
-            ui.separator();
+            ui.add_space(4.0);
         }
     }
 
-    params_grid(ui, studio, target, inst, desc);
-
-    ui.separator();
-    if ui
-        .button("Reset")
-        .on_hover_text("Ripristina tutti i parametri ai valori di default")
-        .clicked()
-    {
-        let cmds: Vec<Command> = desc
-            .params
-            .iter()
-            .map(|p| param_cmd(target, p.name, p.default))
-            .collect();
-        studio.exec(Command::Batch { commands: cmds });
-    }
+    egui::ScrollArea::vertical()
+        .max_height(420.0)
+        .auto_shrink([false, true])
+        .show(ui, |ui| {
+            params_grid(ui, studio, target, inst, desc);
+        });
 
     if let Some((channel, _, root)) = r.channel {
-        ui.separator();
+        ui.add_space(8.0);
         test_keyboard(ui, studio, channel, root);
     }
 }
@@ -169,77 +195,213 @@ fn sample_row(ui: &mut Ui, studio: &mut Studio, channel: ChannelId, inst: &Plugi
     });
 }
 
-fn params_grid(ui: &mut Ui, studio: &mut Studio, target: PluginTarget, inst: &PluginInstance, desc: &PluginDescriptor) {
-    let key = salt(target);
-    egui::Grid::new(format!("plugin_params_{key}"))
-        .num_columns(2)
-        .spacing([12.0, 6.0])
-        .show(ui, |ui| {
-            for p in desc.params {
-                let committed = inst.params.get(p.name).copied().unwrap_or(p.default);
-                ui.label(p.label);
-                param_control(ui, studio, target, &key, p, committed);
-                ui.end_row();
-            }
-        });
-}
-
-fn param_control(ui: &mut Ui, studio: &mut Studio, target: PluginTarget, key: &str, p: &ParamDesc, value: f32) {
-    if !p.choices.is_empty() {
-        let cur = (value.round() - p.min).max(0.0) as usize;
-        let text = p.choices.get(cur).copied().unwrap_or("?");
-        egui::ComboBox::from_id_salt(format!("{key}:{}", p.name))
-            .selected_text(text)
-            .show_ui(ui, |ui| {
-                for (i, label) in p.choices.iter().enumerate() {
-                    if ui.selectable_label(i == cur, *label).clicked() {
-                        studio.exec(param_cmd(target, p.name, p.min + i as f32));
-                        ui.close();
-                    }
-                }
-            });
-    } else if is_toggle_param(p) {
-        let mut on = value >= 0.5;
-        if ui.checkbox(&mut on, "").changed() {
-            studio.exec(param_cmd(target, p.name, if on { 1.0 } else { 0.0 }));
+/// Gruppo di un parametro: prefisso tipo `osc1`, `band3`, altrimenti "Generale".
+pub fn param_group(name: &str) -> String {
+    match name.split_once('_') {
+        Some((pre, _)) if pre.chars().last().is_some_and(|c| c.is_ascii_digit()) => {
+            let (word, num): (String, String) = pre.chars().partition(|c| !c.is_ascii_digit());
+            let word = match word.as_str() {
+                "osc" => "Oscillatore",
+                "band" => "Banda",
+                other => other,
+            };
+            format!("{word} {num}")
         }
-    } else {
-        let id = Id::new(format!("{key}:{}:live", p.name));
-        let mut v = live(ui.ctx(), id, value);
-        let suffix = if p.unit.is_empty() {
-            String::new()
-        } else {
-            format!(" {}", p.unit)
-        };
-        let r = ui.add(egui::Slider::new(&mut v, p.min..=p.max).suffix(suffix));
-        if let Some(nv) = settle(ui.ctx(), id, &r, v, value) {
-            studio.exec(param_cmd(target, p.name, nv));
-        }
+        _ => "Generale".to_string(),
     }
 }
 
-/// Un'ottava di pulsanti a partire dalla nota di riferimento; tenere premuto suona la nota.
-fn test_keyboard(ui: &mut Ui, studio: &mut Studio, channel: ChannelId, root: u8) {
-    ui.label("Tastiera di prova");
-    ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing = vec2(2.0, 2.0);
-        for k in 0..12u8 {
-            let key = root.saturating_add(k).min(127);
-            let id = Id::new(("test_key", channel.0, key));
-            let down = ui
-                .add(egui::Button::new(key_name(key)).min_size(vec2(34.0, 24.0)))
-                .is_pointer_button_down_on();
-            let was = ui.ctx().data(|d| d.get_temp::<bool>(id)).unwrap_or(false);
-            if down && !was {
-                studio.engine.preview_on(channel, key, TEST_VELOCITY);
-            } else if !down && was {
-                studio.engine.preview_off(channel, key);
-            }
-            if down != was {
-                ui.ctx().data_mut(|d| d.insert_temp(id, down));
-            }
+/// Valore leggibile con unità.
+pub fn format_value(p: &ParamDesc, v: f32) -> String {
+    match p.unit {
+        "Hz" if v >= 1000.0 => format!("{:.2} kHz", v / 1000.0),
+        "Hz" => format!("{v:.0} Hz"),
+        "ms" => format!("{v:.0} ms"),
+        "s" => format!("{v:.3} s"),
+        "dB" => format!("{v:+.1} dB"),
+        "%" => format!("{v:.0}%"),
+        "" if p.max - p.min <= 2.0 => format!("{:.0}%", (v - p.min) / (p.max - p.min).max(1e-6) * 100.0),
+        u => format!("{v:.2} {u}"),
+    }
+}
+
+fn params_grid(ui: &mut Ui, studio: &mut Studio, target: PluginTarget, inst: &PluginInstance, desc: &PluginDescriptor) {
+    let key = salt(target);
+    let mut groups: Vec<(String, Vec<&ParamDesc>)> = Vec::new();
+    for p in desc.params {
+        let g = param_group(p.name);
+        match groups.iter_mut().find(|(n, _)| *n == g) {
+            Some((_, v)) => v.push(p),
+            None => groups.push((g, vec![p])),
         }
+    }
+    for (name, params) in groups {
+        egui::Frame::new()
+            .fill(pal::BG_PANEL)
+            .stroke(Stroke::new(1.0, pal::BORDER))
+            .corner_radius(6)
+            .inner_margin(10)
+            .show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                widgets::section_label(ui, &name);
+                ui.add_space(4.0);
+                ui.horizontal_wrapped(|ui| {
+                    ui.spacing_mut().item_spacing = vec2(10.0, 10.0);
+                    for p in params {
+                        let committed = inst.params.get(p.name).copied().unwrap_or(p.default);
+                        param_control(ui, studio, target, &key, p, committed);
+                    }
+                });
+            });
+        ui.add_space(6.0);
+    }
+}
+
+const CELL_W: f32 = 64.0;
+
+fn param_control(ui: &mut Ui, studio: &mut Studio, target: PluginTarget, key: &str, p: &ParamDesc, value: f32) {
+    ui.allocate_ui(vec2(if p.choices.is_empty() { CELL_W } else { 120.0 }, 70.0), |ui| {
+        ui.vertical_centered(|ui| {
+            ui.spacing_mut().item_spacing.y = 4.0;
+            if !p.choices.is_empty() {
+                ui.add_space(8.0);
+                let cur = (value.round() - p.min).max(0.0) as usize;
+                let text = p.choices.get(cur).copied().unwrap_or("?");
+                egui::ComboBox::from_id_salt(format!("{key}:{}", p.name))
+                    .width(112.0)
+                    .selected_text(text)
+                    .show_ui(ui, |ui| {
+                        for (i, label) in p.choices.iter().enumerate() {
+                            if ui.selectable_label(i == cur, *label).clicked() {
+                                studio.exec(param_cmd(target, p.name, p.min + i as f32));
+                                ui.close();
+                            }
+                        }
+                    });
+                ui.label(RichText::new(p.label).size(10.5).color(pal::TEXT_DIM));
+            } else if is_toggle_param(p) {
+                ui.add_space(12.0);
+                let on = value >= 0.5;
+                if widgets::toggle(ui, on, if on { "ON" } else { "OFF" }, pal::ACCENT, vec2(48.0, 22.0)).clicked() {
+                    studio.exec(param_cmd(target, p.name, if on { 0.0 } else { 1.0 }));
+                }
+                ui.label(RichText::new(p.label).size(10.5).color(pal::TEXT_DIM));
+            } else {
+                let id = Id::new(format!("{key}:{}:live", p.name));
+                let mut v = live(ui.ctx(), id, value);
+                let r = widgets::labeled_knob(ui, p.label, &mut v, p.min, p.max, p.default, 38.0, |x| {
+                    format_value(p, x)
+                });
+                if let Some(nv) = settle(ui.ctx(), id, &r, v, value) {
+                    studio.exec(param_cmd(target, p.name, nv));
+                }
+                r.on_hover_text(format!("{}: {}  (doppio click = default)", p.label, format_value(p, v)));
+            }
+        });
     });
+}
+
+/// Tastiera di prova di due ottave dalla nota di riferimento: tenere premuto suona la nota.
+fn test_keyboard(ui: &mut Ui, studio: &mut Studio, channel: ChannelId, root: u8) {
+    widgets::section_label(ui, "Tastiera di prova");
+    let start = root - root % 12;
+    let whites: Vec<u8> = (0..24u8)
+        .map(|k| start.saturating_add(k))
+        .filter(|k| !is_black(*k) && *k <= 127)
+        .collect();
+    let w = (ui.available_width() / whites.len() as f32).clamp(14.0, 28.0);
+    let (rect, resp) = ui.allocate_exact_size(vec2(w * whites.len() as f32, 64.0), Sense::click_and_drag());
+    let p = ui.painter();
+    let ptr = resp.interact_pointer_pos().filter(|_| resp.is_pointer_button_down_on());
+    // Tasti neri sopra i bianchi: hit-test prima sui neri.
+    let mut blacks = Vec::new();
+    let mut hit: Option<u8> = None;
+    for (i, k) in whites.iter().enumerate() {
+        let r = Rect::from_min_size(
+            pos2(rect.left() + i as f32 * w, rect.top()),
+            vec2(w - 1.0, rect.height()),
+        );
+        if k % 12 != 4 && k % 12 != 11 && *k < 127 {
+            let br = Rect::from_min_size(
+                pos2(r.right() - w * 0.3, rect.top()),
+                vec2(w * 0.6, rect.height() * 0.6),
+            );
+            blacks.push((k + 1, br));
+        }
+        if ptr.is_some_and(|q| r.contains(q)) {
+            hit = Some(*k);
+        }
+    }
+    for (k, br) in &blacks {
+        if ptr.is_some_and(|q| br.contains(q)) {
+            hit = Some(*k);
+        }
+    }
+    let id = Id::new(("test_key_down", channel.0));
+    let was: Option<u8> = ui.data(|d| d.get_temp(id));
+    if was != hit {
+        if let Some(k) = was {
+            studio.engine.preview_off(channel, k);
+        }
+        if let Some(k) = hit {
+            studio.engine.preview_on(channel, k, TEST_VELOCITY);
+        }
+        ui.data_mut(|d| match hit {
+            Some(k) => {
+                d.insert_temp(id, k);
+            }
+            None => d.remove::<u8>(id),
+        });
+    }
+    for (i, k) in whites.iter().enumerate() {
+        let r = Rect::from_min_size(
+            pos2(rect.left() + i as f32 * w, rect.top()),
+            vec2(w - 1.0, rect.height()),
+        );
+        let c = if hit == Some(*k) {
+            pal::ACCENT
+        } else {
+            Color32::from_rgb(0xe6, 0xe9, 0xec)
+        };
+        p.rect_filled(
+            r,
+            egui::CornerRadius {
+                sw: 3,
+                se: 3,
+                ..Default::default()
+            },
+            c,
+        );
+        if k % 12 == 0 {
+            p.text(
+                r.center_bottom() - vec2(0.0, 8.0),
+                Align2::CENTER_CENTER,
+                key_name(*k),
+                FontId::proportional(8.5),
+                Color32::from_gray(90),
+            );
+        }
+    }
+    for (k, br) in &blacks {
+        let c = if hit == Some(*k) {
+            pal::ACCENT
+        } else {
+            Color32::from_rgb(0x1b, 0x1e, 0x22)
+        };
+        p.rect_filled(
+            *br,
+            egui::CornerRadius {
+                sw: 2,
+                se: 2,
+                ..Default::default()
+            },
+            c,
+        );
+    }
+}
+
+fn is_black(key: u8) -> bool {
+    matches!(key % 12, 1 | 3 | 6 | 8 | 10)
 }
 
 #[cfg(test)]
@@ -257,6 +419,17 @@ mod tests {
         assert!(is_toggle_param(&param("key_track", 0.0, 1.0)));
         assert!(!is_toggle_param(&param("reverse", 0.0, 2.0)));
         assert!(!is_toggle_param(&param("cutoff", 0.0, 1.0)));
+    }
+
+    #[test]
+    fn groups_and_formatting() {
+        assert_eq!(param_group("osc2_coarse"), "Oscillatore 2");
+        assert_eq!(param_group("band7_gain"), "Banda 7");
+        assert_eq!(param_group("cutoff"), "Generale");
+        assert_eq!(param_group("pitch_semitones"), "Generale");
+        let hz = ParamDesc::new("cutoff", "Cutoff", 20.0, 20000.0, 1000.0, "Hz");
+        assert_eq!(format_value(&hz, 2500.0), "2.50 kHz");
+        assert_eq!(format_value(&hz, 440.0), "440 Hz");
     }
 
     #[test]
