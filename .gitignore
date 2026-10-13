@@ -3,3 +3,6 @@
 *.wav
 !tests/fixtures/**/*.wav
 .DS_Store
+
+# Worktree temporanei degli agenti
+.claude/worktrees/
