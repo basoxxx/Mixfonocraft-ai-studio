@@ -25,6 +25,9 @@ pub struct Host {
     catalog: RwLock<Vec<PluginInfo>>,
     /// Ultimi errori di creazione (per mostrarli nella GUI).
     errors: Mutex<Vec<String>>,
+    /// Istanze rimosse dal progetto ma forse ancora usate dal motore: vengono distrutte
+    /// da [`Host::idle`] sul thread UI, mai dal thread audio.
+    graveyard: Mutex<Vec<Arc<dyn ExternalInstance>>>,
 }
 
 impl Default for Host {
@@ -48,6 +51,7 @@ impl Host {
             live: Mutex::new(HashMap::new()),
             catalog: RwLock::new(Vec::new()),
             errors: Mutex::new(Vec::new()),
+            graveyard: Mutex::new(Vec::new()),
         }
     }
 
@@ -162,13 +166,37 @@ impl Host {
     /// Chiude le istanze che non compaiono più nel progetto.
     pub fn retain(&self, keep: &[String]) {
         let mut live = self.live.lock();
+        let mut grave = self.graveyard.lock();
         live.retain(|id, l| {
             let keep_it = keep.iter().any(|k| k == id);
             if !keep_it {
                 l.instance.close_editor();
+                grave.push(l.instance.clone());
             }
             keep_it
         });
+    }
+
+    /// Da chiamare periodicamente dal thread UI: `idle` delle istanze vive e distruzione
+    /// di quelle rimosse che il motore non usa più (così il plugin non viene mai
+    /// distrutto dal thread audio).
+    pub fn idle(&self) {
+        let live: Vec<Arc<dyn ExternalInstance>> = self.live.lock().values().map(|l| l.instance.clone()).collect();
+        for i in &live {
+            i.idle();
+        }
+        let dead: Vec<Arc<dyn ExternalInstance>> = {
+            let mut grave = self.graveyard.lock();
+            let (dead, alive) = grave.drain(..).partition(|i| Arc::strong_count(i) == 1);
+            *grave = alive;
+            dead
+        };
+        drop(dead);
+    }
+
+    /// Istanze in attesa di distruzione.
+    pub fn pending_drops(&self) -> usize {
+        self.graveyard.lock().len()
     }
 
     /// Id delle istanze vive.
@@ -269,6 +297,12 @@ mod tests {
         assert_eq!(host.collect_states().len(), 2);
         host.retain(&["ext2".into()]);
         assert_eq!(host.live_ids(), vec!["ext2".to_string()]);
+        // `a`/`b` (come il motore) tengono viva l'istanza rimossa: non va distrutta.
+        host.idle();
+        assert_eq!(host.pending_drops(), 1);
+        drop((a, b));
+        host.idle();
+        assert_eq!(host.pending_drops(), 0);
         // Generatore tramite il trait del motore.
         assert!(ExternalHost::create_generator(&host, &pi, 48_000.0).is_some());
         // Kind non valido → errore registrato, nessun generatore.
